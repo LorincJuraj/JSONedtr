@@ -12,6 +12,9 @@ function JSONedtr( data, outputElement, runFunctionOnUpdate = false ){
 		$.each( node , function( key, value ) {
 			JSONedtr.i++;
 
+			if( typeof key == 'string' )
+				key = key.replace(/\"/g,"&quot;");
+
 			if( typeof value == 'object' ) {
 				var type = typeof value;
 
@@ -22,6 +25,8 @@ function JSONedtr( data, outputElement, runFunctionOnUpdate = false ){
 				output += JSONedtr.level( value, lvl+1 );
 				output += '<div class="jse--delete">✖</div></div>';
 			} else {
+				if( typeof value == 'string' )
+					value = value.replace(/\"/g,"&quot;");
 				output += '<div class="jse--row" id="jse--row-' + JSONedtr.i + '"><input type="text" class="jse--key" data-level="' + lvl + '" value="' + key + '"> : <span class="jse--typeof">(' + typeof value + ')</span><input type="text" class="jse--value" value="' + value + '" data-key="' + key + '"><div class="jse--delete">✖</div></div>';
 			}
 		})
