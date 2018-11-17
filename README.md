@@ -1,4 +1,4 @@
-JSONedtr
+# JSONedtr
 
 jQuery powered JSON editor for basic JSON editing on your web project
 
@@ -21,7 +21,14 @@ Just include `src/JSONedtr.css` and `src/JSONedtr.js` in your project after jQue
 
 ## Usage
 
-### Basic usage
+#### Basic usage
+
+##### Create element for the editor
+```html
+<div id="output"></div>
+```
+
+##### Initialize editor with your data
 ```js
 $(document).ready(function(){
 	var data = '{"first_key":"one","second_key":"two","third_key":{"one":"item 3-1","two":"item 3-2","three":"item 3-3"}}';
@@ -29,7 +36,15 @@ $(document).ready(function(){
 });
 ```
 
-### Multiple instances
+#### Multiple instances
+
+##### Create two elements for the editor
+```html
+<div id="output-1"></div>
+<div id="output-2"></div>
+```
+
+##### Initialize editors with your data
 ```js
 $(document).ready(function(){
 	var data1 = '{"first_key":"one","second_key":"two","third_key":{"one":"item 3-1","two":"item 3-2","three":"item 3-3"}}';
@@ -40,12 +55,21 @@ $(document).ready(function(){
 });
 ```
 
-### Getting data
+#### Getting data
+
+##### Create element for the editor
+```html
+<div id="output-1"></div>
+<div id="output-2"></div>
+```
+
+##### Initialize editor with your data and work with it
 ```js
 $(document).ready(function(){
 	var data = '{"first_key":"one","second_key":"two","third_key":{"one":"item 3-1","two":"item 3-2","three":"item 3-3"}}';
 	new JSONedtr( data, '#output' );
 
+	// See your output in console (Ctrl+F12)
 	var result1 = one.getData();
 	console.log('Output of getData(): ', result1);
 
@@ -59,10 +83,10 @@ See provided example files and their code for more information
 ## TODO
 * better support for array data type (currently can be opened but is saved as object)
 * better support for number number type (currently can be opened but is saved as string)
+* add support to reference type
 * use SASS
 * dark theme
-* minify code
-
+* minify code for production
 
 ## Support
 
