@@ -85,7 +85,7 @@ See provided example files and their code for more information
 * better support for number number type (currently can be opened but is saved as string)
 * add support to reference type
 * use SASS
-* dark theme
+* ~~dark theme~~ DONE
 * minify code for production
 
 ## Support
