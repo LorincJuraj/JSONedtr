@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>JSONedtr - jQuery powered JSON editor</title>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script src="../src/JSONedtr.js"></script>
+<link rel="stylesheet" type="text/css" href="../src/JSONedtr.css">
+
+<script>
+$(document).ready(function(){
+	var data = '{"first_key":"one","second_key":"two","third_key":{"one":"item 3-1","two":"item 3-2","three":"item 3-3"},"fourth_key":[1,2,3,4,5],"fifth_key":{"level_2":{"level_3":{"level_4":"item"}}}}';
+	new JSONedtr( data, '#output' );
+})
+</script>
+<style>
+	#help{
+		margin: 50px 50px 0px;
+	}
+
+</style>
+</head>
+<body>
+
+	<div id="help">
+		<p>Click the <u><b>✚</b></u> sign to add a row.</p>
+		<p>Click the <u><b>✖</b></u> sign to delete a row.</p>
+		<p>Click any <u><b>key</b></u> or <u><i>value</i></u> to edit it.</p>
+		<p>See source of this file (Ctrl+u) for code.</p>
+	</div>
+
+	<div id="output"></div>
+
+</body>
+</html>
