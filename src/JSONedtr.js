@@ -1,4 +1,4 @@
-function JSONedtr( data, outputElement, runFunctionOnUpdate = false ){
+function JSONedtr( data, outputElement, config = {} ){
 
 	if (! window.jQuery) {
         console.error("JSONedtr requires jQuery");
@@ -6,6 +6,12 @@ function JSONedtr( data, outputElement, runFunctionOnUpdate = false ){
     }
 
 	var JSONedtr = {};
+
+	JSONedtr.config = config;
+
+	if( JSONedtr.config.instantChange == null  )
+		JSONedtr.config.instantChange = true ;
+
 	JSONedtr.level = function ( node, lvl=0 ) {
 		var output = '';
 
@@ -32,6 +38,7 @@ function JSONedtr( data, outputElement, runFunctionOnUpdate = false ){
 		})
 
 		output += '<div class="jse--row jse--add" data-level="' + lvl + '"><button class="jse--plus">✚</button></div>';
+
 		return output;
 	}
 
@@ -130,7 +137,6 @@ function JSONedtr( data, outputElement, runFunctionOnUpdate = false ){
 				}
 				break;
 			case 'object':
-				console.log('HERE');
 				$( row ).find( '.jse--key' ).addClass( 'jse--object' );
 				$( row ).append( '<div class="xxx jse--row jse--add" data-level="' + (lvl + 1) + '"><button class="jse--plus">✚</button></div>' );
 				$( row ).addClass( 'jse--row-object' );
@@ -147,16 +153,23 @@ function JSONedtr( data, outputElement, runFunctionOnUpdate = false ){
 		$( row ).after( '<div class="jse--row jse--add" data-level="' + lvl + '"><button class="jse--plus">✚</button></div>' );
 		$( row ).parent().find( '.jse--row.jse--add .jse--plus' ).click( function(e){ JSONedtr.addRowForm( e.currentTarget.parentElement ) });
 
-		if ( JSONedtr.runFunctionOnUpdate ) {
-			JSONedtr.executeFunctionByName( JSONedtr.runFunctionOnUpdate , window, JSONedtr);
+		$( row ).find( 'input' ).on( 'change input', function( e ){
+			if ( JSONedtr.config.runFunctionOnUpdate ) {
+				if( JSONedtr.config.instantChange || 'change' == e.type )
+					JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
+			}
+		});
+
+		if ( JSONedtr.config.runFunctionOnUpdate ) {
+			JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
 		}
 
 	}
 
 	JSONedtr.deleteRow = function( row ) {
 		$( row ).remove();
-		if ( runFunctionOnUpdate ) {
-			JSONedtr.executeFunctionByName( runFunctionOnUpdate , window, JSONedtr);
+		if ( JSONedtr.config.runFunctionOnUpdate ) {
+			JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
 		}
 	}
 
@@ -185,6 +198,13 @@ function JSONedtr( data, outputElement, runFunctionOnUpdate = false ){
 		$( outputElement + ' .jse--row .jse--delete' ).click(function( e ){
 			JSONedtr.deleteRow( e.currentTarget.parentElement );
 		})
+
+		$( outputElement + ' .jse--row input' ).on( 'change input', function( e ){
+			if ( JSONedtr.config.runFunctionOnUpdate ) {
+				if( JSONedtr.config.instantChange || 'change' == e.type )
+					JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
+			}
+		});
 	}
 
 	JSONedtr.init( data, outputElement );

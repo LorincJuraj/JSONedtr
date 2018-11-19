@@ -33,6 +33,7 @@
 	text-align: center;
 	font-size: 1.5em;
 	cursor: pointer;
+	color: #fff;
 }
 
 .jse--output .jse--row.jse--add{
@@ -50,6 +51,7 @@
 	padding: 0 !important;
 	width: 30px;
 	height: 30px;
+	color: #fff;
 }
 
 .jse--output .jse--typeof{
@@ -61,6 +63,8 @@
 
 .jse--output input{
 	border: none;
+	display: inline-block;
+	width: auto;
 	background-color: transparent;
 	margin: 0;
 	line-height: 30px;

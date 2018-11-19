@@ -10,7 +10,7 @@
 <script>
 
 function getDataOnChange( data ){
-	console.log('DATA WAS CHANGED', data);
+	console.log('DATA WAS CHANGED', data.getData());
 }
 
 
@@ -45,7 +45,12 @@ $(document).ready(function(){
 	//////////////////////////////////////////
 
 	var data2 = '{"first_key_2":"one","second_key_2":"two","third_key_2":{"one":"item 3-1","two":"item 3-2","three":"item 3-3"},"fourth_key_2":[1,2,3]}';
-	var two = new JSONedtr( data2, '#output-2', 'getDataOnChange2' );
+
+	// runFunctionOnUpdate contains name of string to be called on change
+	// if instantChange is set to true (which it is by default) change function will be called while typing,
+	// if it is set to false function will be called on change event (when field will loose focus)
+	// for functions which require heavy computing or for large data is recommended to change this to false
+	var two = new JSONedtr( data2, '#output-2', {runFunctionOnUpdate:'getDataOnChange', instantChange: true} );
 
 
 	$( two.outputElement ).after('<button class="btn-2">(2) Push data to 3</button> Data from <b>Two</b> to <b>Three</b><br>');
