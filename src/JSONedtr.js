@@ -50,7 +50,7 @@ function JSONedtr( data, outputElement, config = {} ){
 				result[ $(this).data( 'key' ) ] = $(this).val();
 			}
 
-			if( $(this).hasClass( 'object' ) || $(this).hasClass( 'jse--array' ) ) {
+			if( $(this).hasClass( 'jse--object' ) || $(this).hasClass( 'jse--array' ) ) {
 				var selector = '#' + $(this).parent().attr('id') + ' > .jse--row > input';
 				result[ $(this).val( ) ] = JSONedtr.getData( $( selector ) );
 			}
