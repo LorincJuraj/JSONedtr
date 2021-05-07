@@ -10,6 +10,10 @@ jQuery powered JSON editor for basic JSON editing on your web project
 - [Support](#support)
 - [Contributing](#contributing)
 
+## Demo
+
+[JSONedtr demo on JSFiddle](https://jsfiddle.net/4te6bkma/2/)
+
 ## Installation
 
 Just include `src/JSONedtr.css` and `src/JSONedtr.js` in your project after jQuery by putting following code into your code
@@ -94,6 +98,6 @@ Please [open an issue](https://github.com/LorincJuraj/JSONedtr/issues/new) for s
 
 ## Contributing
 
-New pull requests and encouraged and welcomed.
+New pull requests are encouraged and welcomed.
 
 Please contribute using [Github Flow](https://guides.github.com/introduction/flow/). Create a branch, add commits, and [open a pull request](https://github.com/fraction/readme-boilerplate/compare/).
