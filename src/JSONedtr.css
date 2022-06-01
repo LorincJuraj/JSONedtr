@@ -1,24 +1,29 @@
 .jse--output{
-	position: relative;
-	margin: 50px;
-	width: 1000px;
-	min-height: 100px;
-	outline: 1px solid #eee;
-	padding: 0;
-	color: white;
-	background-color: #f3f6fa;
+    position: relative;
+    margin: 0;
+    width: 100%;
+    min-height: 90px;
+    outline: 1px solid #eee;
+    padding: 0;
+    /*
+    background-color: #f3f6fa;
     background-image: linear-gradient(#fff 50%, transparent 50%, transparent);
     background-size: 60px 60px;
+    */
     color: black;
     font-family: monospace;
 }
 
-.jse--output .jse--row{
-	position: relative;
-	display: block;
-	margin: 0px;
-	line-height: 30px;
+.jse--output .jse--row {
+    position: relative;
+    display: block;
+    margin: 0px;
+    line-height: 30px;
 }
+
+.jse--output .jse--row:nth-child(even) { background: rgba(0,0,0,0.1); }
+.jse--output .jse--row:nth-child(odd) { background: transparent; }
+
 
 .jse--output .jse--row:hover{
 	background-color: rgba( 0, 0, 0, 0.01);
@@ -53,10 +58,9 @@
 }
 
 .jse--output .jse--typeof{
-	font-weight: 200;
-	font-size: 0.9em;
-	color: #555;
-	margin-left: 50px;
+    font-weight: 200;
+    font-size: 0.9em;
+    color: #555;
 }
 
 .jse--output input{
@@ -85,13 +89,38 @@
 	font-style: italic;
 }
 
+.jse--output input[type=checkbox].jse--value,
 .jse--output input[type=checkbox].jse--value__new{
-	position: absolute;
+    /* position: absolute; */
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    padding:0;
+    width: 20px;
+    height: 30px;
+    margin-left: 20px;
+    margin-right: 20px;
 }
 
 .jse--output .jse--row-object > .jse--row,
-.jse--output .jse--row--array > .jse--row{
+.jse--output .jse--row-array > .jse--row {
 	padding-left: 15px;
 	margin-left: 15px;
 	border-left: 1px dotted #ccc;
+}
+
+button.jse--reset,
+button.jse--default,
+button.jse--save,
+button.jse--cancel {
+    cursor: pointer;
+    padding: 0 10px;
+    margin-left: 10px;
+    margin-right: 10px;
+    height: 30px;
+}
+
+button.jse--reset,
+button.jse--default {
+    float: right;
 }
