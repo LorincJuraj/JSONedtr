@@ -1,97 +1,224 @@
-.jse--output{
-	position: relative;
-	margin: 50px;
-	width: 1000px;
-	min-height: 100px;
-	outline: 1px solid #eee;
-	padding: 0;
-	color: white;
-	background-color: #f3f6fa;
-    background-image: linear-gradient(#fff 50%, transparent 50%, transparent);
-    background-size: 60px 60px;
-    color: black;
+*
+{
+    box-sizing: border-box;
+}
+
+.jse--output {
+    position: relative;
+    margin: 0;
+    width: 100%;
+    min-height: 90px;
+    outline: 1px solid #eee;
+    padding: 0;
+    color: #1b1b1b;
     font-family: monospace;
 }
 
-.jse--output .jse--row{
-	position: relative;
-	display: block;
-	margin: 0px;
-	line-height: 30px;
+.jse--output.jse--template-dark {
+    background-color: #0c0905;
+    color: white;
 }
+
+.jse--output .jse--row {
+    position: relative;
+    display: inline-block;
+    margin: 0px;
+    line-height: 30px;
+    width: 100%;
+    min-height: 30px;
+    height: auto;
+}
+
+.jse--output .jse--row:nth-child(even) { background: rgba(0,0,0,0.05); }
+.jse--output.jse--template-dark .jse--row:nth-child(even) { background: rgba(255,255,255,0.05); }
+
+.jse--output .jse--row:nth-child(odd) { background: transparent; }
+
 
 .jse--output .jse--row:hover{
-	background-color: rgba( 0, 0, 0, 0.01);
-	outline: 1px dotted #555;
+    background-color: rgba( 0, 0, 0, 0.01);
+    outline: 1px dotted #555;
 }
 
-.jse--output .jse--delete{
-	position: absolute;
-	right: 0;
-	top: 0;
-	width: 2em;
-	text-align: center;
-	font-size: 1.5em;
-	cursor: pointer;
+.jse--output.jse--template-dark .jse--row:hover{
+    background-color: rgba( 255, 255, 255, 0.01);
+    outline: 1px dotted #aaa;
+}
+
+.jse--output .jse--delete {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: auto;
+    text-align: center;
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 0 10px;
+}
+
+.jse--output.jse--template-dark .jse--delete {
+    color: #fff;
+}
+
+.jse--output.jse--readonly .jse--delete {
+    display: none;
 }
 
 .jse--output .jse--row.jse--add{
-	font-weight: bold;
-	height: 30px;
+    font-weight: bold;
 }
 
 .jse--output .jse--row.jse--add .jse--plus{
-	font-size: 1em;
-	padding-left: 20px !important;
-	cursor: pointer;
-	border: none;
-	background-color: transparent;
-	margin-left: 6px;
-	padding: 0 !important;
-	width: 30px;
-	height: 30px;
+    font-size: 1em;
+    padding-left: 20px !important;
+    cursor: pointer;
+    border: none;
+    background-color: transparent;
+    margin-left: 6px;
+    padding: 0 !important;
+    width: 30px;
+    height: 30px;
 }
 
-.jse--output .jse--typeof{
-	font-weight: 200;
-	font-size: 0.9em;
-	color: #555;
-	margin-left: 50px;
+.jse--output.jse--template-dark .jse--row.jse--add .jse--plus {
+    color: #fff;
 }
+
+.jse--output span.jse--typeof {
+    font-weight: 200;
+    font-size: 0.9em;
+    color: #555;
+    min-width: 110px;
+    width: auto;
+}
+
+.jse--output .jse--typeof:before {
+    content: ': ';
+    font-size: 1.5em;
+    font-weight: bold;
+    padding-left: 5px;
+}
+
+.jse--output.jse--template-dark .jse--typeof {
+    color: #aaa;
+}
+
+.jse--output .jse--row-object > .jse--typeof { color: darkcyan; }
+.jse--output .jse--row-array > .jse--typeof { color: darkred; }
+.jse--output .jse--row-number > .jse--typeof { color: deeppink; }
+.jse--output .jse--row-boolean > .jse--typeof { color: darkorange; }
+.jse--output .jse--row-string > .jse--typeof { color: darkgreen; }
+
+.jse--output.jse--template-dark .jse--row-object > .jse--typeof { color: cyan; }
+.jse--output.jse--template-dark .jse--row-array > .jse--typeof { color: red; }
+.jse--output.jse--template-dark .jse--row-number > .jse--typeof { color: pink; }
+.jse--output.jse--template-dark .jse--row-boolean > .jse--typeof { color: orange; }
+.jse--output.jse--template-dark .jse--row-string > .jse--typeof { color: green; }
 
 .jse--output input{
-	border: none;
-	background-color: transparent;
-	margin: 0;
-	line-height: 30px;
-	height: 30px;
-	padding: 0 15px;
+    /* border: none; */
+    border: 1px solid #ccc;
+    display: inline-block;
+    background-color: transparent;
+    margin: 0;
+    line-height: 30px;
+    height: 30px;
+    padding: 0 15px;
+    max-width: 100%;
+    min-width: 30px;
+    width: auto;
 }
 
-.jse--output input:hover{
-	background-color: rgba(249, 251, 253, 0.5)
+.jse--output input.jse--value {
+    width: 75%;
+    width: calc(79% - 150px); 
+}
+.jse--output input.jse--key {
+    width: 20%;
 }
 
-.jse--output input:focus{
-	outline: 1px solid silver;
-	background-color: rgba(249, 251, 253, 1)
+.jse--output input:hover {
+    background-color: rgba(249, 251, 253, 0.5)
+}
+
+.jse--output input:focus {
+    outline: 1px solid silver;
+    background-color: rgba(249, 251, 253, 1)
+}
+
+.jse--output.jse--template-dark input:hover{
+    background-color: rgba(6, 4, 2, 0.5)
+}
+
+.jse--output.jse--template-dark input:focus{
+    outline: 1px solid silver;
+    background-color: rgba(6, 4, 2, 1)
 }
 
 .jse--output input.jse--key{
-	font-weight: bold;
+    font-weight: bold;
 }
 
 .jse--output input.jse--value{
-	font-style: italic;
+    font-style: italic;
 }
 
-.jse--output input[type=checkbox].jse--value__new{
-	position: absolute;
+.jse--output input[type=checkbox].jse--value,
+.jse--output input[type=checkbox].jse--value__new {
+    /* position: absolute; */
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    padding:0;
+    width: 20px;
+    height: 30px;
+    margin-left: 20px;
+    margin-right: 20px;
+    cursor: pointer;
+}
+
+.jse--output input[type=checkbox].jse--value::after {
+    content: 'false';
+    padding-left: 40px;
+}
+
+.jse--output input[type=checkbox].jse--value:checked::after {
+    content: 'true';
+    padding-left: 40px;
 }
 
 .jse--output .jse--row-object > .jse--row,
-.jse--output .jse--row--array > .jse--row{
-	padding-left: 15px;
-	margin-left: 15px;
-	border-left: 1px dotted #ccc;
+.jse--output .jse--row-array > .jse--row {
+    width: 99%;    
+    padding-left: 15px;
+    margin-left: 1%;
+    border-left: 1px dotted #ccc;
+}
+.jse--output button { 
+    cursor: pointer;
+    padding: 0 10px;
+    margin-left: 10px;
+    margin-right: 10px;
+    height: 30px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    color: #1b1b1b;
+    font-weight: bold;
+}
+
+button.jse--reset,
+button.jse--default {
+    float: right;
+}
+
+button.jse--save { color: green; }
+button.jse--reset { color: red; }
+
+@media (max-width: 768px)
+{
+    .jse--output input.jse--value,
+    .jse--output input.jse--key {
+        width: 100%;
+    }
+    
 }
