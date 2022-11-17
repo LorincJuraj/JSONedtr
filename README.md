@@ -82,11 +82,34 @@ $(document).ready(function(){
 });
 ```
 
+#### Getting data
+
+##### List of configuration properties
+
+* deleteDisabled (default: false) - If set true you can't remove items
+* addDisabled (default: false) - If set true you can't add more items
+* editKeyDisabled (default: false) - If set true all key/name-of-property input are disabled
+* editValueDisabled (default: false) - If set true all value input are disabled
+* careAboutType (default: false) - If set true the processor of get back the date put all value in a string, if set false it try to 'decode' the type of the value and put in the model with the right type (lazy mode)
+
+##### Initialize editor with configuration
+```js
+$(document).ready(function(){
+	var data = '{"first_key":"one","second_key":"two","third_key":{"one":"item 3-1","two":"item 3-2","three":"item 3-3"}}';
+	new JSONedtr( data, '#output', {
+		deleteDisabled: true,
+		editKeyDisabled: true
+	});
+
+	// See your output in console (Ctrl+F12)
+	var result1 = one.getData();
+	console.log('Output of getData(): ', result1);
+});
+```
 See provided example files and their code for more information
 
 ## TODO
-* better support for array data type (currently can be opened but is saved as object)
-* better support for number number type (currently can be opened but is saved as string)
+* implement object and array creation from zero
 * add support to reference type
 * use SASS
 * ~~dark theme~~ DONE
