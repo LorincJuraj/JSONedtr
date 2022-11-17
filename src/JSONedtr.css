@@ -85,12 +85,18 @@
 	font-style: italic;
 }
 
-.jse--output input[type=checkbox].jse--value__new{
-	position: absolute;
+input.jse--value.jse--value--boolean{
+	height: auto;
+	margin-left: 7px;
 }
 
-.jse--output .jse--row-object > .jse--row,
-.jse--output .jse--row--array > .jse--row{
+.jse--output input[type=checkbox].jse--value__new{
+	position: inherit;
+	width: auto;
+	margin: 5px;
+}
+
+.jse--output .jse--row--list > .jse--row{
 	padding-left: 15px;
 	margin-left: 15px;
 	border-left: 1px dotted #ccc;
