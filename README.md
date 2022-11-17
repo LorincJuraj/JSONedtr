@@ -110,6 +110,7 @@ See provided example files and their code for more information
 
 ## TODO
 * implement object and array creation from zero
+* add different language support
 * add support to reference type
 * use SASS
 * ~~dark theme~~ DONE
