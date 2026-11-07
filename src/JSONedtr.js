@@ -78,8 +78,8 @@ function JSONedtr( data, outputElement, config = {} ){
 		$( JSONedtr.outputElement ).html( html ).data('i', JSONedtr.i);
 		JSONedtr.bindEvents();
 		JSONedtr.highlightChanges();
-		// Зберігаємо активний фільтр пошуку (якщо був) після перебудови
-		// вмісту (undo/redo/import) — застосовується лише як показ/приховування.
+		// Preserve the active search filter, if any, after rebuilding the
+		// content (undo/redo/import); reapply it only as a visibility filter.
 		if( JSONedtr.searchFilter ) {
 			JSONedtr.applyFilter( JSONedtr.searchFilter );
 		}
@@ -198,15 +198,13 @@ function JSONedtr( data, outputElement, config = {} ){
 		return output;
 	}
 
-	// Дані обчислюються безпосередньо з рядків (.jse--row), а не з їхніх
-	// input-елементів. Попередня реалізація визначала, чи рядок є
-	// об'єктом/масивом, за наявністю класу jse--object/jse--array на
-	// input полі ключа — але таке поле ключа взагалі НЕ генерується для
-	// елементів масиву (isArray == true, дивись level()), тому вкладені
-	// об'єкти/масиви всередині масиву повністю "губилися" при зборі
-	// даних. Це і призводило до пошкодження структури JSON при
-	// перенесенні/збереженні елементів масиву. Нова реалізація визначає
-	// тип рядка за наявністю дочірнього контейнера .jse--children.
+	// Build data directly from .jse--row elements rather than their inputs.
+	// The previous implementation detected object/array rows by checking
+	// for jse--object/jse--array on the key input. Array items do not have
+	// key inputs (see level() when isArray == true), so nested objects and
+	// arrays inside arrays were omitted when collecting data, corrupting the
+	// JSON structure when moving or saving array items. This implementation
+	// detects row types by the presence of a .jse--children container.
 	JSONedtr.getData = function( $rows, isArray ){
 		if( $rows === undefined ) {
 			$rows = $( JSONedtr.outputElement ).children('.jse--row:not(.jse--add)');
@@ -220,7 +218,7 @@ function JSONedtr( data, outputElement, config = {} ){
 			var $childrenContainer = $row.children('.jse--children');
 
 			if( $childrenContainer.length ) {
-				// Вкладений об'єкт або масив
+				// Nested object or array
 				var childIsArray = ( $childrenContainer.attr('data-type') === 'array' );
 				var value = JSONedtr.getData( $childrenContainer.children('.jse--row:not(.jse--add)'), childIsArray );
 
@@ -520,18 +518,15 @@ function JSONedtr( data, outputElement, config = {} ){
 	}
 
 	JSONedtr.updateArrayIndices = function( $parent ) {
-		// Ця функція має сенс лише для контейнерів типу "масив" — саме там
-		// ключем елемента є його позиційний індекс, і тому індекс потрібно
-		// перерахувати після переміщення/видалення/додавання рядків.
+		// This function applies only to array containers, where each item's key
+		// is its positional index and must be recalculated after rows are moved,
+		// deleted, or added.
 		//
-		// Раніше функція викликалась безумовно (як для масивів, так і для
-		// об'єктів) і завжди перезаписувала значення поля .jse--key на
-		// числовий індекс. Через це переміщення (drag&drop або кнопками
-		// ↑/↓) КЛЮЧІВ ОБ'ЄКТА призводило до втрати їхніх справжніх імен —
-		// усі ключі перетворювались на "0", "1", "2"... — саме це й ламало
-		// структуру JSON. Для об'єктів жодного перерахунку індексів/ключів
-		// бути не повинно: порядок рядків у DOM вже коректний, а імена
-		// ключів мають залишатися незмінними.
+		// Previously, it ran for both arrays and objects and replaced .jse--key
+		// values with numeric indexes. Moving object rows then destroyed their
+		// actual keys, replacing them with "0", "1", "2", etc., and corrupting
+		// the JSON structure. Object keys must remain unchanged; their row order
+		// in the DOM is already correct and does not require index updates.
 		var isArrayContainer = ( $parent.attr('data-type') === 'array' );
 
 		if( !isArrayContainer ) {
@@ -539,16 +534,15 @@ function JSONedtr( data, outputElement, config = {} ){
 		}
 
 		// Find all direct row children (not .jse--add) and update their indices.
-		// ВАЖЛИВО: усі пошуки нижче обмежені лише прямими нащадками рядка
-		// (children(), а не find()). Раніше використовувався find(), який
-		// шукає ПО ВСЬОМУ піддереву — і коли елемент масиву сам був
-		// об'єктом/масивом з вкладеними значеннями, їхні data-key
-		// перезаписувались індексом верхнього елемента, що ламало
-		// структуру JSON (втрачались справжні ключі вкладених об'єктів).
+		// IMPORTANT: Limit all searches below to direct row children
+		// (children(), not find()). find() previously searched the entire
+		// subtree. When an array item was itself an object/array with nested
+		// values, this overwrote their data-key values with the parent array
+		// index, corrupting JSON and losing nested object keys.
 		var index = 0;
 		$parent.children('.jse--row:not(.jse--add)').each(function() {
 			var $row = $(this);
-			// Update visual index display (лише власний індекс рядка)
+			// Update visual index display (row's own index only)
 			var $indexEl = $row.children('.jse--index').first();
 			if( $indexEl.length ) {
 				$indexEl.html('⠿ [' + index + ']');
@@ -558,7 +552,7 @@ function JSONedtr( data, outputElement, config = {} ){
 			if( $keyInput.length ) {
 				$keyInput.val(index);
 			}
-			// Update data-key on value inputs (лише прямі, не вкладені)
+			// Update data-key on value inputs (direct children only)
 			$row.children('.jse--value, .jse--number, .jse--reference').each(function() {
 				$(this).data('key', index);
 			});
@@ -566,9 +560,8 @@ function JSONedtr( data, outputElement, config = {} ){
 		});
 	}
 
-	// Пошук реалізований як показ/приховування вже існуючих рядків
-	// (без перебудови даних), тому редагування пошукового рядка ніколи
-	// не веде до втрати вже введених даних.
+	// Search filters existing rows by showing or hiding them without rebuilding
+	// the data, so editing while searching never discards entered values.
 	JSONedtr.applyFilter = function( term ) {
 		JSONedtr.searchFilter = term || '';
 
@@ -795,13 +788,11 @@ function JSONedtr( data, outputElement, config = {} ){
 
 		$( outputElement ).before( toolbar );
 
-		// Захоплюємо посилання на щойно вставлений toolbar ОДРАЗУ після
-		// його вставки. Якщо зробити це пізніше (після вставки
-		// модального вікна валідації), безпосереднім попереднім
-		// елементом outputElement стане вже модальне вікно, а не
-		// toolbar — і $toolbar.find(...) повертав би порожню
-		// колекцію, через що жодна кнопка тулбару не отримувала
-		// обробників подій (саме це й ламало всі кнопки toolbar).
+		// Capture the toolbar reference immediately after inserting it. If this
+		// is done later (after inserting the validation modal), the modal rather
+		// than the toolbar becomes the element immediately before outputElement,
+		// so $toolbar.find(...) would return an empty collection and no toolbar
+		// buttons would receive event handlers.
 		var $toolbar = $( outputElement ).prev('.jse--toolbar');
 
 		// Validation modal (hidden by default)
@@ -812,10 +803,9 @@ function JSONedtr( data, outputElement, config = {} ){
 			'</div></div>';
 		$( outputElement ).before( modalHtml );
 
-		// Search - виконується лише за кнопкою/Enter, а не "на льоту"
-		// (щоб не перебудовувати список при кожному натисканні клавіші,
-		// коли елементів багато) і ніколи не змінює дані, лише
-		// показує/приховує вже існуючі рядки.
+		// Search runs only on button click or Enter, not as you type
+		// (to avoid rebuilding the list on every keystroke with large datasets),
+		// and changes visibility only; it never modifies the data.
 		$toolbar.find('.jse--search-input').on('keydown', function( e ) {
 			if( e.key === 'Enter' ) {
 				e.preventDefault();
@@ -945,17 +935,17 @@ function JSONedtr( data, outputElement, config = {} ){
 		var dragSrcEl = null;
 		var isDragging = false;
 
-		// Рядки мають атрибут draggable="true", виставлений одразу при
-		// генерації HTML (level()/addRow()), тому не залежимо від
-		// динамічного перемикання draggable через mousedown (це було
-		// нестабільним і саме через це drag&drop не працював).
-		// Елементи, з яких перетягування починати не повинно (кнопки,
-		// текстові поля значень тощо) мають draggable="false" безпосередньо
-		// в розмітці — цього достатньо, аби браузер не почав drag, коли
-		// користувач лише виділяє текст або натискає кнопку.
+		// Rows have draggable="true" set when their HTML is generated in
+		// level()/addRow(), so drag-and-drop does not rely on dynamically
+		// changing draggable on mousedown (which was unreliable and prevented
+		// it from working).
+		// Elements that should not start a drag (buttons, value inputs, etc.)
+		// are marked draggable="false" directly in the markup. This prevents
+		// the browser from starting a drag when the user selects text or clicks
+		// a button.
 
 		$( outputElement ).on('dragstart', '.jse--row:not(.jse--add)', function(e) {
-			// Додаткова перевірка на випадок кастомних/скопійованих рядків.
+			// Extra check for custom or cloned rows.
 			if( $(e.target).is('button, .jse--btn, .jse--save, .jse--cancel, .jse--value, .jse--number, .jse--reference') ) {
 				e.preventDefault();
 				return false;
@@ -1004,8 +994,8 @@ function JSONedtr( data, outputElement, config = {} ){
 			var $src = $( dragSrcEl );
 			var $dst = $( this );
 
-			// Дозволяємо переміщення лише в межах одного й того самого
-			// батьківського контейнера (масиву/об'єкта одного рівня).
+			// Allow moves only within the same parent container (same-level
+			// array/object).
 			var sameParent = ( $src.parent()[0] === $dst.parent()[0] );
 
 			if( sameParent ) {

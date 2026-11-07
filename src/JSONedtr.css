@@ -19,9 +19,9 @@
 }
 
 /*
- * Смуги, що відділяють рядки, будуються по фактичних DOM-рядках
- * (nth-child), а не по фіксованій піксельній сітці background-image,
- * тому вони не "розходяться" на вкладених/різновисоких рядках.
+ * Row separators are based on actual DOM rows (nth-child), not a fixed-pixel
+ * background-image grid, so they stay aligned across nested rows of different
+ * heights.
  */
 .jse--output .jse--row:nth-child(even){
 	background-color: #f3f6fa;
@@ -229,7 +229,7 @@
 	background-color: rgba(76, 175, 80, 0.1);
 }
 
-/* Стилі для кнопок Save та Cancel */
+/* Save and Cancel button styles */
 .jse--output .jse--save,
 .jse--output .jse--cancel{
 	display: inline-block;
@@ -259,7 +259,7 @@
 	border-color: #f44336;
 }
 
-/* Стилі для select типу */
+/* Type select styles */
 .jse--output select.jse--typeof{
 	display: inline-block;
 	vertical-align: middle;
@@ -421,8 +421,8 @@
 	outline: 2px dashed #ffc107 !important;
 }
 
-/* Drag handle indicator (кнопки/поля значень мають draggable="false"
-   в розмітці, тому лише ці елементи фактично запускають перетягування) */
+/* Drag handle indicators (buttons and value fields are marked
+   draggable="false" in the markup, so dragging starts only from these) */
 .jse--toggle,
 .jse--drag-handle,
 .jse--index{
