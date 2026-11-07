@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>JSONedtr — full feature test</title>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<link rel="stylesheet" href="../src/JSONedtr.css">
+<!-- Dark theme is always linked but disabled; the toolbar 🌙/☀️ button toggles it -->
+<link rel="stylesheet" href="..//src/JSONedtr-dark.css" id="jsonedtr-dark-css" disabled>
+<style>
+    body {
+        font-family: "Open Sans", Arial, sans-serif;
+        margin: 20px 30px;
+        color: #333;
+        background: #fafafa;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .subtitle { color: #777; font-size: 13px; margin-bottom: 16px; }
+    .features { font-size: 12px; color: #666; margin: 0 0 16px; padding-left: 18px; }
+    .features li { margin: 2px 0; }
+    .panel {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 12px;
+        margin-bottom: 16px;
+    }
+    .panel h2 { margin: 0 0 10px; font-size: 15px; }
+    .json-editor-wrapper { overflow-x: auto; }
+    .json-editor-wrapper .jse--output {
+        margin-left: 0;
+        width: auto;
+        min-width: 600px;
+    }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .toolbar button {
+        padding: 6px 12px;
+        border: 1px solid #bbb;
+        border-radius: 3px;
+        background: #fff;
+        cursor: pointer;
+        font-size: 12px;
+    }
+    .toolbar button:hover { background: #eee; }
+    .status { font-size: 12px; color: #777; margin-left: auto; }
+    pre {
+        margin: 10px 0 0;
+        padding: 10px;
+        background: #1e1e1e;
+        color: #d4d4d4;
+        border-radius: 4px;
+        font-size: 12px;
+        line-height: 1.5;
+        max-height: 320px;
+        overflow: auto;
+        white-space: pre-wrap;
+    }
+</style>
+</head>
+<body>
+
+<h1>JSONedtr — full feature test</h1>
+<div class="subtitle">Visual JSON editor: all value types, nesting, arrays, toolbar, themes, undo/redo, drag &amp; drop.</div>
+
+<ul class="features">
+    <li>Toolbar: search, JSON export/import, undo/redo, validation, theme switching</li>
+    <li>Value types: string, number, boolean, null, object, array, empty object/array</li>
+    <li>Add, delete, copy and drag &amp; drop rows</li>
+    <li>Keyboard shortcuts: Ctrl+Z / Ctrl+Y (undo/redo), Ctrl+Shift+S (export)</li>
+    <li>Live result updates via <code>runFunctionOnUpdate</code></li>
+</ul>
+
+<div class="panel">
+    <h2>Editor</h2>
+    <div class="json-editor-wrapper">
+        <div id="json-editor-output"></div>
+    </div>
+</div>
+
+<div class="panel">
+    <h2>Editor API and output</h2>
+    <div class="toolbar">
+        <button type="button" id="btn-get-data">getData()</button>
+        <button type="button" id="btn-get-string">getDataString()</button>
+        <button type="button" id="btn-copy">Copy JSON</button>
+        <button type="button" id="btn-download">Download .json</button>
+        <button type="button" id="btn-reload">Reset (reload)</button>
+        <span class="status" id="json-status">waiting for changes…</span>
+    </div>
+    <pre id="json-output"></pre>
+</div>
+
+<script src="../src/JSONedtr.js"></script>
+<script>
+var sampleData = {
+    name: "JSONedtr demo",
+    description: "All value types and nesting levels",
+    version: 1,
+    enabled: true,
+    disabled: false,
+    empty_value: null,
+    unicode: "Hello, world! 🌙",
+    settings: {
+        theme: "light",
+        limits: {
+            min: 0,
+            max: 100,
+            step: 0.5
+        },
+        flags: [true, false, null],
+        empty_object: {},
+        empty_array: []
+    },
+    items: [
+        {id: 1, title: "Item A", price: 10.5, active: true},
+        {id: 2, title: "Item B", price: 20.0, active: false},
+        {id: 3, title: "Item C", price: 30.25, active: true, tags: ["new", "sale"]}
+    ],
+    tags: ["red", "green", "blue", "yellow"],
+    nested: {
+        level1: {
+            level2: {
+                level3: {
+                    value: "deep value",
+                    counter: 42
+                }
+            }
+        }
+    }
+};
+
+var outputElement = '#json-editor-output';
+
+function setOutput(data, prefix) {
+    document.getElementById('json-output').textContent =
+        (prefix ? prefix + '\n' : '') + JSON.stringify(data, null, 2);
+}
+
+function setStatus(text) {
+    document.getElementById('json-status').textContent = text;
+}
+
+// Called by the editor on every change (instantChange: true)
+window.syncJsonEditor = function (instance) {
+    try {
+        setOutput(instance.getData(), '// getData() — current state:');
+        setStatus('updated: ' + new Date().toLocaleTimeString());
+    } catch (e) {
+        setStatus('error: ' + e.message);
+    }
+};
+
+window.editor = new JSONedtr(JSON.stringify(sampleData), outputElement, {
+    instantChange: true,
+    runFunctionOnUpdate: 'syncJsonEditor',
+    theme: 'light',
+    toolbar: {
+        search: true,
+        export: true,
+        import: true,
+        undo: true,
+        redo: true,
+        validate: true,
+        theme: true
+    }
+});
+
+setOutput(sampleData, '// initial data:');
+setStatus('editor initialized');
+
+document.getElementById('btn-get-data').addEventListener('click', function () {
+    setOutput(window.editor.getData(), '// getData():');
+    setStatus('getData() called');
+});
+
+document.getElementById('btn-get-string').addEventListener('click', function () {
+    document.getElementById('json-output').textContent =
+        '// getDataString():\n' + window.editor.getDataString();
+    setStatus('getDataString() called');
+});
+
+document.getElementById('btn-copy').addEventListener('click', function () {
+    var text = window.editor.getDataString();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+            setStatus('JSON copied to clipboard');
+        }, function () {
+            setStatus('copy failed');
+        });
+    } else {
+        setStatus('Clipboard API is not available');
+    }
+});
+
+document.getElementById('btn-download').addEventListener('click', function () {
+    var blob = new Blob([window.editor.getDataString()], {type: 'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'jsonedtr-demo.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setStatus('file downloaded');
+});
+
+document.getElementById('btn-reload').addEventListener('click', function () {
+    window.location.reload();
+});
+</script>
+</body>
+</html>
