@@ -77,7 +77,7 @@ function JSONedtr( data, outputElement, config = {} ){
 		var html = JSONedtr.level( newData, 0, Array.isArray(newData) );
 		$( JSONedtr.outputElement ).html( html ).data('i', JSONedtr.i);
 		JSONedtr.bindEvents();
-		JSONedtr.highlightChanges();
+		JSONedtr.notifyChange();
 		// Preserve the active search filter, if any, after rebuilding the
 		// content (undo/redo/import); reapply it only as a visibility filter.
 		if( JSONedtr.searchFilter ) {
@@ -85,32 +85,140 @@ function JSONedtr( data, outputElement, config = {} ){
 		}
 	};
 
+	JSONedtr.isEqual = function( a, b ) {
+		if( a === b ) return true;
+		// Treat NaN as equal to NaN so number fields do not flicker as changed
+		return ( typeof a == 'number' && typeof b == 'number' && isNaN( a ) && isNaN( b ) );
+	};
+
+	JSONedtr.getRowValue = function( $row ) {
+		var $valueInput = $row.children( '.jse--value, .jse--number, .jse--reference' ).first();
+		if( !$valueInput.length ) return undefined;
+
+		if( $valueInput.hasClass( 'jse--boolean' ) ) {
+			return ( $valueInput.attr( 'data-value' ) === 'true' );
+		}
+
+		var value = $valueInput.val();
+
+		if( $valueInput.hasClass( 'jse--number' ) ) {
+			value = parseFloat( value );
+			if( isNaN( value ) ) value = 0;
+		}
+
+		if( $valueInput.hasClass( 'jse--null' ) && value === 'null' ) {
+			value = null;
+		}
+
+		return value;
+	};
+
+	JSONedtr.markChangedRows = function( original, $rows, isArray ) {
+		var originalIsContainer = ( original !== null && typeof original == 'object' );
+
+		$rows.each(function( index ){
+			var $row = $( this );
+			var $children = $row.children( '.jse--children' );
+			var key = isArray ? index : $row.children( '.jse--key' ).first().val();
+
+			var hasOriginal = originalIsContainer && ( isArray
+				? index < original.length
+				: Object.prototype.hasOwnProperty.call( original, key ) );
+
+			var originalValue = hasOriginal
+				? original[ isArray ? index : key ]
+				: undefined;
+
+			if( $children.length ) {
+				if( !hasOriginal || originalValue === null || typeof originalValue != 'object' ) {
+					$row.addClass( 'jse--changed' );
+				}
+				JSONedtr.markChangedRows(
+					hasOriginal ? originalValue : undefined,
+					$children.children( '.jse--row:not(.jse--add)' ),
+					( $children.attr( 'data-type' ) === 'array' )
+				);
+			} else if( !hasOriginal || !JSONedtr.isEqual( originalValue, JSONedtr.getRowValue( $row ) ) ) {
+				$row.addClass( 'jse--changed' );
+			}
+		});
+	};
+
 	JSONedtr.highlightChanges = function() {
 		if( !JSONedtr.originalData ) return;
 
-		var currentData = JSONedtr.getData();
-		$( JSONedtr.outputElement ).find('.jse--row').removeClass('jse--changed');
+		var $output = $( JSONedtr.outputElement );
+		$output.find( '.jse--row' ).removeClass( 'jse--changed' );
 
-		JSONedtr.compareAndHighlight( JSONedtr.originalData, currentData, JSONedtr.outputElement );
+		JSONedtr.markChangedRows(
+			JSONedtr.originalData,
+			$output.children( '.jse--row:not(.jse--add)' ),
+			( $output.attr( 'data-type' ) === 'array' )
+		);
 	};
 
-	JSONedtr.compareAndHighlight = function( original, current, parentSelector ) {
-		$.each( current, function( key, value ) {
-			var originalValue = original ? original[key] : undefined;
-			var selector = parentSelector + ' .jse--row';
+	// Returns dot-separated paths of keys/array items that differ from the
+	// originally loaded data. With no arguments, compares against the initial
+	// snapshot; removed keys and added keys are included.
+	JSONedtr.getChangedKeys = function( original, current, prefix ) {
+		if( arguments.length === 0 ) {
+			original = JSONedtr.originalData;
+			current = JSONedtr.getData();
+		}
 
-			if( value !== null && typeof value == 'object' ) {
-				// Recursively compare nested objects/arrays
-				var rowSelector = selector + ':has(.jse--key[value="' + key + '"])';
-				JSONedtr.compareAndHighlight( originalValue, value, rowSelector );
-			} else {
-				if( originalValue !== value ) {
-					// Highlight changed row
-					var row = $( parentSelector ).find('.jse--key[value="' + key + '"]').closest('.jse--row');
-					row.addClass('jse--changed');
+		var changed = [];
+		var path = prefix || '';
+		var join = function( base, key ) {
+			return base ? base + '.' + key : String( key );
+		};
+
+		if( Array.isArray( current ) || Array.isArray( original ) ) {
+			var currentArr = Array.isArray( current ) ? current : [];
+			var originalArr = Array.isArray( original ) ? original : [];
+			var length = Math.max( currentArr.length, originalArr.length );
+
+			for( var i = 0; i < length; i++ ) {
+				var itemPath = join( path, i );
+				if( i >= originalArr.length || i >= currentArr.length ) {
+					changed.push( itemPath );
+				} else {
+					changed = changed.concat( JSONedtr.getChangedKeys( originalArr[ i ], currentArr[ i ], itemPath ) );
 				}
 			}
-		});
+			return changed;
+		}
+
+		if( current !== null && typeof current == 'object' ) {
+			var originalObj = ( original !== null && typeof original == 'object' ) ? original : {};
+
+			Object.keys( current ).forEach(function( key ){
+				var keyPath = join( path, key );
+				if( !Object.prototype.hasOwnProperty.call( originalObj, key ) ) {
+					changed.push( keyPath );
+				} else {
+					changed = changed.concat( JSONedtr.getChangedKeys( originalObj[ key ], current[ key ], keyPath ) );
+				}
+			});
+
+			Object.keys( originalObj ).forEach(function( key ){
+				if( !Object.prototype.hasOwnProperty.call( current, key ) ) {
+					changed.push( join( path, key ) );
+				}
+			});
+			return changed;
+		}
+
+		if( !JSONedtr.isEqual( original, current ) ) {
+			changed.push( path );
+		}
+		return changed;
+	};
+
+	JSONedtr.notifyChange = function() {
+		JSONedtr.highlightChanges();
+		if ( JSONedtr.config.runFunctionOnUpdate ) {
+			JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
+		}
 	};
 
 	JSONedtr.level = function ( node, lvl=0, isArray=false ) {
@@ -160,10 +268,15 @@ function JSONedtr( data, outputElement, config = {} ){
 				var type = typeof value;
 				var valueClass = 'jse--value';
 				var inputType = 'text';
+				var isBoolean = ( type == 'boolean' );
 
 				if( type == 'number' ) {
 					valueClass = 'jse--value jse--number';
 					inputType = 'number';
+				}
+
+				if( isBoolean ) {
+					valueClass = 'jse--value jse--boolean';
 				}
 
 				if( value === null ) {
@@ -182,7 +295,11 @@ function JSONedtr( data, outputElement, config = {} ){
 					output += '<input type="text" class="jse--key jse--editable" data-level="' + lvl + '" value="' + displayKey + '" draggable="false"> : ';
 				}
 				output += '<span class="jse--typeof">(' + type + ')</span>';
-				output += '<input type="' + inputType + '" class="' + valueClass + '" value="' + value + '" data-key="' + key + '"' + (inputType == 'number' ? ' step="any"' : '') + ' draggable="false">';
+				if( isBoolean ) {
+					output += '<span class="' + valueClass + '" data-key="' + key + '" data-value="' + ( value ? 'true' : 'false' ) + '" title="Click to toggle" draggable="false">' + ( value ? 'true' : 'false' ) + '</span>';
+				} else {
+					output += '<input type="' + inputType + '" class="' + valueClass + '" value="' + value + '" data-key="' + key + '"' + (inputType == 'number' ? ' step="any"' : '') + ' draggable="false">';
+				}
 				output += '<div class="jse--actions" draggable="false">';
 				output += '<button type="button" class="jse--btn jse--btn-up" title="Move up">↑</button>';
 				output += '<button type="button" class="jse--btn jse--btn-down" title="Move down">↓</button>';
@@ -232,17 +349,7 @@ function JSONedtr( data, outputElement, config = {} ){
 				var $valueInput = $row.children('.jse--value, .jse--number, .jse--reference').first();
 				if( !$valueInput.length ) return;
 
-				var value = $valueInput.val();
-
-				// Convert number type to actual number
-				if( $valueInput.hasClass( 'jse--number' ) ) {
-					value = parseFloat( value );
-					if( isNaN( value ) ) value = 0;
-				}
-
-				if( $valueInput.hasClass( 'jse--null' ) && value === 'null' ) {
-					value = null;
-				}
+				var value = JSONedtr.getRowValue( $row );
 
 				if( isArray ) {
 					result.push( value );
@@ -304,8 +411,11 @@ function JSONedtr( data, outputElement, config = {} ){
 					$(this).parent().siblings( '.jse--value__new' ).focus();
 					break;
 				case 'boolean':
-					$(this).parent().siblings( '.jse--value__new' ).replaceWith( '<input type="checkbox" class="jse--value jse--value__new" value="">' );
-					$(this).parent().siblings( '.jse--value__new' ).focus();
+					$(this).parent().siblings( '.jse--value__new' ).replaceWith( '<span class="jse--value jse--value__new jse--boolean" data-value="true" title="Click to toggle">true</span>' );
+					$(this).parent().siblings( '.jse--value__new' ).off('click').on('click', function( e ){
+						e.preventDefault();
+						JSONedtr.toggleBoolean( $(this) );
+					});
 					break;
 				case 'reference':
 					$(this).parent().siblings( '.jse--value__new' ).replaceWith( '<input type="text" class="jse--value jse--value__new jse--reference" value="" placeholder="ID or reference...">' );
@@ -377,11 +487,7 @@ function JSONedtr( data, outputElement, config = {} ){
 				$( row ).find( '.jse--value__new' ).data( 'key', key ).data( 'type', 'reference' ).addClass( 'jse--reference' ).removeClass( 'jse--value__new' ).attr('draggable', 'false');
 				break;
 			case 'boolean':
-				if ($( row ).find( '.jse--value__new' ).is(':checked')) {
-					$( row ).find( '.jse--value__new' ).replaceWith( '<input type="text" class="jse--value" value="true" data-key="' + key + '" draggable="false">' );
-				} else {
-					$( row ).find( '.jse--value__new' ).replaceWith( '<input type="text" class="jse--value" value="false" data-key="' + key + '" draggable="false">' );
-				}
+				$( row ).find( '.jse--value__new' ).data( 'key', key ).data( 'type', 'boolean' ).addClass( 'jse--boolean' ).removeClass( 'jse--value__new' ).attr('draggable', 'false');
 				break;
 			case 'object':
 				if( !isArrayContainer ) $( row ).find( '.jse--key' ).addClass( 'jse--object' );
@@ -423,19 +529,29 @@ function JSONedtr( data, outputElement, config = {} ){
 
 		JSONedtr.bindEvents();
 		JSONedtr.saveHistory();
+		JSONedtr.notifyChange();
 
-		if ( JSONedtr.config.runFunctionOnUpdate ) {
-			JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
+	}
+
+	JSONedtr.toggleBoolean = function( $element ) {
+		var $el = ( $element instanceof jQuery ) ? $element : $( $element );
+		var next = ( $el.attr( 'data-value' ) !== 'true' );
+
+		$el.attr( 'data-value', next ? 'true' : 'false' ).text( next ? 'true' : 'false' );
+
+		// Rows of the add form are not committed yet, so no history/update.
+		if( $el.hasClass( 'jse--value__new' ) ) {
+			return;
 		}
 
+		JSONedtr.saveHistory();
+		JSONedtr.notifyChange();
 	}
 
 	JSONedtr.deleteRow = function( row ) {
 		$( row ).remove();
 		JSONedtr.saveHistory();
-		if ( JSONedtr.config.runFunctionOnUpdate ) {
-			JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
-		}
+		JSONedtr.notifyChange();
 	}
 
 	JSONedtr.moveRow = function( row, direction ) {
@@ -458,9 +574,7 @@ function JSONedtr( data, outputElement, config = {} ){
 		JSONedtr.updateArrayIndices( $parent );
 
 		JSONedtr.saveHistory();
-		if ( JSONedtr.config.runFunctionOnUpdate ) {
-			JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
-		}
+		JSONedtr.notifyChange();
 	}
 
 	JSONedtr.copyRow = function( row ) {
@@ -497,10 +611,7 @@ function JSONedtr( data, outputElement, config = {} ){
 
 		JSONedtr.bindEvents();
 		JSONedtr.saveHistory();
-
-		if ( JSONedtr.config.runFunctionOnUpdate ) {
-			JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
-		}
+		JSONedtr.notifyChange();
 	}
 
 	JSONedtr.toggleCollapse = function( row ) {
@@ -587,7 +698,9 @@ function JSONedtr( data, outputElement, config = {} ){
 			if( $index.length ) text += ' ' + $index.text();
 
 			var $value = $row.find('> .jse--value, > .jse--number, > .jse--reference').first();
-			if( $value.length ) text += ' ' + $value.val();
+			if( $value.length ) {
+				text += ' ' + ( $value.hasClass( 'jse--boolean' ) ? $value.text() : $value.val() );
+			}
 
 			if( text.toLowerCase().indexOf( lowerTerm ) !== -1 ) {
 				// Show the matched row, all of its ancestor rows (so it is
@@ -676,11 +789,17 @@ function JSONedtr( data, outputElement, config = {} ){
 			JSONedtr.toggleCollapse( row );
 		});
 
+		// Boolean value toggle (click switches true/false)
+		$( outputElement + ' .jse--value.jse--boolean:not(.jse--value__new)' ).off('click').click(function( e ){
+			e.preventDefault();
+			e.stopPropagation();
+			JSONedtr.toggleBoolean( $(this) );
+		});
+
 		// Input changes
 		$( outputElement + ' .jse--row input' ).off('change input').on( 'change input', function( e ){
-			if ( JSONedtr.config.runFunctionOnUpdate ) {
-				if( JSONedtr.config.instantChange || 'change' == e.type )
-					JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
+			if( JSONedtr.config.instantChange || 'change' == e.type ) {
+				JSONedtr.notifyChange();
 			}
 			// Save history on change
 			if( 'change' == e.type ) {
@@ -697,6 +816,7 @@ function JSONedtr( data, outputElement, config = {} ){
 				valueInput.data('key', newKey);
 			}
 			JSONedtr.saveHistory();
+			JSONedtr.notifyChange();
 		});
 	}
 
@@ -1013,9 +1133,7 @@ function JSONedtr( data, outputElement, config = {} ){
 
 				// Save history and trigger update
 				JSONedtr.saveHistory();
-				if ( JSONedtr.config.runFunctionOnUpdate ) {
-					JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
-				}
+				JSONedtr.notifyChange();
 			}
 
 			isDragging = false;

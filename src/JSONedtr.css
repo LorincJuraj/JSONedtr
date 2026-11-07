@@ -189,6 +189,28 @@
 	font-style: italic;
 }
 
+.jse--output .jse--value.jse--boolean{
+	display: inline-block;
+	min-width: 60px;
+	height: 30px;
+	line-height: 30px;
+	padding: 0 15px;
+	font-family: monospace;
+	font-style: italic;
+	color: #2E7D32;
+	cursor: pointer;
+	border-radius: 3px;
+	user-select: none;
+}
+
+.jse--output .jse--value.jse--boolean:hover{
+	background-color: rgba(46, 125, 50, 0.12);
+}
+
+.jse--output .jse--value.jse--boolean[data-value="false"]{
+	color: #C62828;
+}
+
 .jse--output input.jse--number{
 	font-style: italic;
 	color: #1976D2;

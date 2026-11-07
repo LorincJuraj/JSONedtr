@@ -193,6 +193,29 @@
 	color: #d4d4d4;
 }
 
+.jse--output .jse--value.jse--boolean{
+	display: inline-block;
+	min-width: 60px;
+	height: 30px;
+	line-height: 30px;
+	padding: 0 15px;
+	font-family: monospace;
+	font-style: italic;
+	color: #81c784 !important;
+	background-color: transparent !important;
+	cursor: pointer;
+	border-radius: 3px;
+	user-select: none;
+}
+
+.jse--output .jse--value.jse--boolean:hover{
+	background-color: rgba(129, 199, 132, 0.15) !important;
+}
+
+.jse--output .jse--value.jse--boolean[data-value="false"]{
+	color: #ef9a9a !important;
+}
+
 .jse--output input.jse--number{
 	font-style: italic;
 	color: #64b5f6;

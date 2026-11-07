@@ -199,7 +199,7 @@ container is still created).
 | `null` | Displayed as `null` and preserved as `null` in `getData()`. |
 | `object` | Expandable/collapsible container with nested rows. |
 | `array` | Expandable/collapsible container with numbered indexes. |
-| `boolean` | Existing values are displayed as `true` / `false`. The add-row form provides a boolean checkbox. |
+| `boolean` | Rendered as a clickable `true` / `false` toggle (click switches the value). `getData()` returns a native JSON boolean. |
 | `reference` | Fork-specific string type, highlighted differently; exported as a plain string. |
 
 The add-row form (`✚`) lets you choose the type of the new row:
@@ -280,13 +280,32 @@ editor.applySavedTheme(); // re-apply the stored theme
 
 ### Change highlighting
 
-Scalar rows whose value differs from the initial snapshot are marked with the
-`jse--changed` class. Highlighting is recalculated by `highlightChanges()`
-(after undo/redo, import and programmatic `reload()`), so it can also be
-triggered manually:
+Rows whose value differs from the originally loaded snapshot are marked with
+the `jse--changed` class. Highlighting is recalculated automatically on every
+change: text/number edits, key renames, boolean toggles, add/delete/copy/move,
+drag & drop, undo/redo, import and programmatic `reload()`.
+
+Works for nested objects and arrays (matching by key/index at each level), and
+added keys/items are highlighted as changed too.
 
 ```js
 editor.highlightChanges();
+```
+
+To get the list of changed paths (dot-separated, including added and removed
+keys), use:
+
+```js
+editor.getChangedKeys(); // e.g. ['enabled', 'settings.limits.max', 'tags.2']
+```
+
+An optional `runFunctionOnUpdate` callback fires after highlighting, so it can
+display the changed keys next to the editor:
+
+```js
+window.syncJsonEditor = function (instance) {
+    console.log(instance.getChangedKeys());
+};
 ```
 
 The `jse--search-match` CSS class is available for custom integrations, but
@@ -318,6 +337,7 @@ Shortcuts are handled only while focus is inside the editor.
 | `exportJSON()` | Download the current JSON. |
 | `importJSON(file)` | Load JSON from a `File` object. |
 | `highlightChanges()` | Recalculate changed-row highlighting. |
+| `getChangedKeys()` | Return dot-separated paths of keys/items changed relative to the initial data (added and removed included). |
 | `toggleTheme()` | Switch theme and persist the choice. |
 | `applySavedTheme()` | Apply the theme stored in `localStorage`. |
 | `addRow(row)` | Commit an add-row form row into a normal row. |
@@ -325,6 +345,7 @@ Shortcuts are handled only while focus is inside the editor.
 | `copyRow(row)` | Duplicate a row. |
 | `moveRow(row, 'up' \| 'down')` | Move a row inside its parent. |
 | `toggleCollapse(row)` | Collapse/expand a nested container. |
+| `toggleBoolean(element)` | Switch a boolean value `true` <-> `false` and persist history. |
 | `updateArrayIndices(parent)` | Recalculate indexes of an array container. |
 
 `row` arguments accept a DOM element or jQuery object.
@@ -343,12 +364,14 @@ Shortcuts are handled only while focus is inside the editor.
   `.off()` so repeated rebuilds do not duplicate handlers.
 - The active search filter is preserved after undo/redo/import rebuilds.
 - Empty objects and empty arrays are supported as root data and as nested values.
+- Change highlighting now detects nested objects/arrays, added/removed keys and
+  updates live on every change.
+- Booleans round-trip natively: they are rendered as clickable `true`/`false` toggles and
+  `getData()` returns real JSON booleans instead of strings.
 - Dark theme covers stripes, inputs, toolbar, highlights and modals.
 
 ### Known limitations
 
-- Boolean values are displayed and returned as the strings `"true"` / `"false"`;
-  convert them in the host application if a native JSON boolean is required.
 - `reference` is not part of the JSON standard; it is exported as a string.
 - The `null` type can be edited but is not offered in the add-row form.
 - Undo history is in-memory only and is lost on page reload.
@@ -359,7 +382,7 @@ Shortcuts are handled only while focus is inside the editor.
 - ~~better support for number type~~ DONE
 - ~~add support to reference type~~ DONE
 - ~~dark theme~~ DONE
-- native boolean round-trip (currently converted to strings)
+- ~~native boolean round-trip~~ DONE
 - use SASS
 - minify code for production
 

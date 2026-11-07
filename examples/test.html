@@ -144,7 +144,9 @@ function setStatus(text) {
 window.syncJsonEditor = function (instance) {
     try {
         setOutput(instance.getData(), '// getData() — current state:');
-        setStatus('updated: ' + new Date().toLocaleTimeString());
+        var changed = instance.getChangedKeys();
+        setStatus('updated: ' + new Date().toLocaleTimeString() +
+            ' | changed keys: ' + (changed.length ? changed.join(', ') : 'none'));
     } catch (e) {
         setStatus('error: ' + e.message);
     }
