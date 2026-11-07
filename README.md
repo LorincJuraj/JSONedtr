@@ -2,7 +2,7 @@
 
 jQuery powered visual JSON editor for basic JSON editing in your web project.
 
-This repository contains the **GVein fork** of JSONedtr: the original editor was
+This repository contains an extended version of JSONedtr: the original editor was
 extended with a toolbar, search, undo/redo, JSON import/export, validation,
 themes, drag & drop, collapse/expand, array support and many fixes.
 
@@ -16,7 +16,7 @@ themes, drag & drop, collapse/expand, array support and many fixes.
     - [Multiple instances](#multiple-instances)
     - [Getting data](#getting-data)
     - [Programmatic updates](#programmatic-updates)
-- [Extended functionality (GVein fork)](#extended-functionality-gvein-fork)
+- [Extended functionality](#extended-functionality)
     - [Toolbar](#toolbar)
     - [Value types](#value-types)
     - [Row actions and drag & drop](#row-actions-and-drag--drop)
@@ -30,7 +30,6 @@ themes, drag & drop, collapse/expand, array support and many fixes.
     - [Public API](#public-api)
     - [Fixes over the original project](#fixes-over-the-original-project)
     - [Known limitations](#known-limitations)
-- [Django (GVein) integration](#django-gvein-integration)
 - [TODO](#todo)
 - [Support](#support)
 - [Contributing](#contributing)
@@ -171,7 +170,7 @@ objects and arrays), not from the original input data.
 editor.reload({new_key: 'new value'});
 ```
 
-## Extended functionality (GVein fork)
+## Extended functionality
 
 ### Toolbar
 
@@ -353,48 +352,6 @@ Shortcuts are handled only while focus is inside the editor.
 - `reference` is not part of the JSON standard; it is exported as a string.
 - The `null` type can be edited but is not offered in the add-row form.
 - Undo history is in-memory only and is lost on page reload.
-
-## Django (GVein) integration
-
-In the GVein project this fork is located in
-`gvein/core/static/gvein/js/jsonedtr/` and is wrapped by reusable Django
-components:
-
-- `JSONEditorWidget` (`gvein/core/utils/forms.py`) — hidden input + JSONedtr
-  container. Loads `JSONedtr.css`/`JSONedtr.js` via widget media, renders the
-  dark stylesheet link, injects a unique global update callback per widget and
-  syncs the editor value into the hidden input on submit.
-- `JSONFormField` — validates the submitted JSON and returns `dict`/`list` in
-  `cleaned_data`.
-- `JSONField` (`gvein/core/utils/models.py`) — `TextField` that stores JSON and
-  exposes `dict`/`list` values in Python.
-
-Usage:
-
-```python
-from gvein.core.utils.forms import JSONFormField
-from gvein.core.utils.models import JSONField
-
-
-class MyModel(models.Model):
-    data = JSONField(null=True, blank=True)
-
-
-class MyForm(forms.Form):
-    data = JSONFormField(required=False)
-```
-
-In the template include the form media and render the field:
-
-```django
-{% block head %}{{ form.media }}{% endblock %}
-...
-{{ form.data }}
-```
-
-A working example is the task parameters editor
-(`task_edit_json` in `gvein/task/views.py` and
-`gvein/task/templates/gvein/task_edit_json.html`).
 
 ## TODO
 
