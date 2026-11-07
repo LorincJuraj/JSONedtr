@@ -1,30 +1,130 @@
+/* Dark theme for JSONedtr — overrides light theme styles.
+   Loaded AFTER JSONedtr.css, so same-specificity rules win by order.
+   Where light theme uses !important or higher specificity, we match it. */
+
 .jse--output{
 	position: relative;
-	margin: 50px;
-	width: 1000px;
 	min-height: 100px;
-	outline: 1px solid #111;
+	outline: 1px solid #333;
 	padding: 0;
-	color: white;
-	background-color: #0c0905;
-    background-image: linear-gradient(#000 50%, transparent 50%, transparent);
-    background-size: 60px 60px;
-    color: black;
-    font-family: monospace;
+	background-color: #1e1e1e !important;
+	color: #d4d4d4 !important;
+	font-family: monospace;
 }
 
 .jse--output .jse--row{
 	position: relative;
 	display: block;
-	margin: 0px;
+	margin: 0;
 	line-height: 30px;
+	padding-left: 30px;
+	background-color: transparent !important;
+}
+
+/* Override light theme's nth-child striping */
+.jse--output .jse--row:nth-child(even){
+	background-color: #252526 !important;
+}
+
+.jse--output .jse--row.jse--add{
+	background-color: transparent !important;
+}
+
+.jse--output .jse--children{
+	background-color: transparent !important;
 }
 
 .jse--output .jse--row:hover{
-	background-color: rgba( 255, 255, 255, 0.01);
-	outline: 1px dotted #aaa;
+	background-color: #2b2b2d !important;
+	outline: 1px dotted #555;
+	box-shadow: none;
 }
 
+/* Toggle button for collapse/expand */
+.jse--output .jse--toggle{
+	position: absolute;
+	left: 5px;
+	top: 0;
+	width: 20px;
+	height: 30px;
+	line-height: 30px;
+	text-align: center;
+	font-size: 0.8em;
+	cursor: pointer;
+	color: #888;
+	user-select: none;
+}
+
+.jse--output .jse--toggle:hover{
+	color: #fff;
+	background-color: rgba(255,255,255,0.1);
+	border-radius: 3px;
+}
+
+/* Array index display */
+.jse--output .jse--index{
+	color: #888;
+	font-size: 0.85em;
+	margin-right: 5px;
+}
+
+/* Actions container */
+.jse--output .jse--actions{
+	position: absolute;
+	right: 0;
+	top: 0;
+	display: flex;
+	gap: 2px;
+	opacity: 0;
+	transition: opacity 0.2s;
+}
+
+.jse--output .jse--row:hover .jse--actions{
+	opacity: 1;
+}
+
+/* Action buttons */
+.jse--output .jse--btn{
+	width: 24px;
+	height: 24px;
+	line-height: 22px;
+	text-align: center;
+	font-size: 0.9em;
+	cursor: pointer;
+	border: 1px solid #555;
+	border-radius: 3px;
+	background-color: #333;
+	color: #ccc;
+	padding: 0;
+	margin: 3px 1px;
+	transition: all 0.15s;
+}
+
+.jse--output .jse--btn:hover{
+	background-color: #444;
+	border-color: #888;
+}
+
+.jse--output .jse--btn-up:hover,
+.jse--output .jse--btn-down:hover{
+	background-color: #1a3a5c;
+	border-color: #2196F3;
+	color: #64b5f6;
+}
+
+.jse--output .jse--btn-copy:hover{
+	background-color: #4a2800;
+	border-color: #ff9800;
+	color: #ffb74d;
+}
+
+.jse--output .jse--btn-delete:hover{
+	background-color: #4a0000;
+	border-color: #f44336;
+	color: #ef5350;
+}
+
+/* Legacy delete button support */
 .jse--output .jse--delete{
 	position: absolute;
 	right: 0;
@@ -39,6 +139,7 @@
 .jse--output .jse--row.jse--add{
 	font-weight: bold;
 	height: 30px;
+	padding-left: 30px;
 }
 
 .jse--output .jse--row.jse--add .jse--plus{
@@ -57,7 +158,7 @@
 .jse--output .jse--typeof{
 	font-weight: 200;
 	font-size: 0.9em;
-	color: #aaa;
+	color: #888;
 	margin-left: 50px;
 }
 
@@ -65,37 +166,328 @@
 	border: none;
 	display: inline-block;
 	width: auto;
-	background-color: transparent;
+	background-color: transparent !important;
 	margin: 0;
 	line-height: 30px;
 	height: 30px;
 	padding: 0 15px;
+	color: #d4d4d4 !important;
 }
 
 .jse--output input:hover{
-	background-color: rgba(6, 4, 2, 0.5)
+	background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
 .jse--output input:focus{
-	outline: 1px solid silver;
-	background-color: rgba(6, 4, 2, 1)
+	outline: 1px solid #555;
+	background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 .jse--output input.jse--key{
 	font-weight: bold;
+	color: #d4d4d4;
 }
 
 .jse--output input.jse--value{
 	font-style: italic;
+	color: #d4d4d4;
+}
+
+.jse--output .jse--value.jse--boolean{
+	display: inline-block;
+	min-width: 60px;
+	height: 30px;
+	line-height: 30px;
+	padding: 0 15px;
+	font-family: monospace;
+	font-style: italic;
+	color: #81c784 !important;
+	background-color: transparent !important;
+	cursor: pointer;
+	border-radius: 3px;
+	user-select: none;
+}
+
+.jse--output .jse--value.jse--boolean:hover{
+	background-color: rgba(129, 199, 132, 0.15) !important;
+}
+
+.jse--output .jse--value.jse--boolean[data-value="false"]{
+	color: #ef9a9a !important;
+}
+
+.jse--output input.jse--number{
+	font-style: italic;
+	color: #64b5f6;
+}
+
+.jse--output input.jse--reference{
+	font-style: italic;
+	color: #ce93d8;
 }
 
 .jse--output input[type=checkbox].jse--value__new{
 	position: absolute;
 }
 
-.jse--output .jse--row-object > .jse--row,
-.jse--output .jse--row--array > .jse--row{
+/* Children container for nested items */
+.jse--output .jse--children{
 	padding-left: 15px;
 	margin-left: 15px;
-	border-left: 1px dotted #333;
+	border-left: 1px dotted #444;
+}
+
+/* Changed row highlighting */
+body .jse--output .jse--row.jse--changed{
+	background-color: #3a3418 !important;
+}
+
+.jse--output .jse--row.jse--changed > input.jse--key{
+	background-color: rgba(255, 235, 59, 0.2) !important;
+}
+
+/* Search highlight */
+.jse--output .jse--row.jse--search-match{
+	background-color: #22331f !important;
+}
+
+/* Save/Cancel buttons */
+.jse--output .jse--save,
+.jse--output .jse--cancel{
+	display: inline-block;
+	vertical-align: middle;
+	height: 24px;
+	line-height: 24px;
+	padding: 0 10px;
+	margin: 0 4px;
+	font-size: 0.85em;
+	font-family: monospace;
+	border: 1px solid #555;
+	border-radius: 3px;
+	cursor: pointer;
+	background-color: #333;
+	color: #d4d4d4;
+}
+
+.jse--output .jse--save:hover{
+	background-color: #2e7d32;
+	color: white;
+	border-color: #4CAF50;
+}
+
+.jse--output .jse--cancel:hover{
+	background-color: #c62828;
+	color: white;
+	border-color: #f44336;
+}
+
+/* Select type dropdown */
+.jse--output select.jse--typeof{
+	display: inline-block;
+	vertical-align: middle;
+	height: 24px;
+	line-height: 24px;
+	padding: 0 5px;
+	margin: 0 4px;
+	font-size: 0.85em;
+	font-family: monospace;
+	border: 1px solid #555;
+	border-radius: 3px;
+	background-color: #333;
+	color: #d4d4d4;
+}
+
+/* Toolbar styles */
+.jse--toolbar{
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	background-color: #2d2d2d !important;
+	border: 1px solid #444;
+	border-bottom: none;
+	color: #d4d4d4 !important;
+	flex-wrap: wrap;
+}
+
+.jse--toolbar input[type="text"]{
+	max-width: 200px;
+	padding: 5px 10px;
+	border: 1px solid #555;
+	border-radius: 3px;
+	font-family: monospace;
+	background-color: #1e1e1e !important;
+	color: #d4d4d4 !important;
+}
+
+.jse--toolbar button{
+	padding: 5px 10px;
+	border: 1px solid #555;
+	border-radius: 3px;
+	background-color: #333 !important;
+	color: #d4d4d4 !important;
+	cursor: pointer;
+	font-family: monospace;
+	font-size: 0.85em;
+	white-space: nowrap;
+	min-width: 32px;
+	min-height: 28px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.jse--toolbar button:hover{
+	background-color: #444 !important;
+}
+
+.jse--toolbar .jse--btn-export:hover{
+	background-color: #1b3a1b;
+	border-color: #4CAF50;
+	color: #81c784;
+}
+
+.jse--toolbar .jse--btn-import:hover{
+	background-color: #1a2a4a;
+	border-color: #2196F3;
+	color: #64b5f6;
+}
+
+.jse--toolbar .jse--btn-undo:hover,
+.jse--toolbar .jse--btn-redo:hover{
+	background-color: #3a2a10;
+	border-color: #ff9800;
+	color: #ffb74d;
+}
+
+.jse--toolbar .jse--btn-validate:hover{
+	background-color: #2a1a3a;
+	border-color: #9c27b0;
+	color: #ce93d8;
+}
+
+.jse--toolbar .jse--btn-search:hover,
+.jse--toolbar .jse--btn-clear-search:hover{
+	background-color: #0d2a3a;
+	border-color: #03a9f4;
+	color: #4fc3f7;
+}
+
+.jse--toolbar .jse--btn-theme:hover{
+	background-color: #2a2a1a;
+	border-color: #ffc107;
+	color: #ffd54f;
+}
+
+.jse--toolbar-separator{
+	color: #555;
+	margin: 0 4px;
+}
+
+/* Validation modal */
+.jse--validation-modal{
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 10000;
+	background-color: #2d2d2d;
+	border: 1px solid #555;
+	border-radius: 6px;
+	box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+	padding: 16px 20px;
+	min-width: 200px;
+	max-width: 400px;
+}
+
+.jse--validation-modal-content{
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.jse--validation-modal-close{
+	background: none;
+	border: none;
+	font-size: 1.2em;
+	cursor: pointer;
+	color: #888;
+	padding: 0 4px;
+	line-height: 1;
+}
+
+.jse--validation-modal-close:hover{
+	color: #fff;
+}
+
+/* Validation status */
+.jse--validation-ok{
+	color: #81c784;
+	font-weight: bold;
+	font-size: 0.9em;
+}
+
+.jse--validation-error{
+	color: #ef5350;
+	font-weight: bold;
+	font-size: 0.9em;
+}
+
+/* Drag and Drop styles */
+.jse--row[draggable="true"]{
+	cursor: grab;
+}
+
+.jse--row[draggable="true"]:active{
+	cursor: grabbing;
+}
+
+.jse--row.jse--dragging{
+	opacity: 0.5;
+	background-color: #1a3a5c !important;
+}
+
+.jse--row.jse--drag-over{
+	background-color: #4a4a00 !important;
+	outline: 2px dashed #ffc107 !important;
+}
+
+/* Drag handle indicator */
+.jse--toggle,
+.jse--drag-handle,
+.jse--key,
+.jse--index{
+	cursor: grab !important;
+}
+
+.jse--toggle:active,
+.jse--drag-handle:active,
+.jse--key:active,
+.jse--index:active{
+	cursor: grabbing !important;
+}
+
+.jse--drag-handle,
+.jse--index{
+	display: inline-block;
+	padding: 0 4px;
+	margin-right: 4px;
+	background-color: rgba(255,255,255,0.08);
+	border-radius: 3px;
+	user-select: none;
+}
+
+.jse--drag-handle:hover,
+.jse--index:hover{
+	background-color: rgba(255,255,255,0.15);
+}
+
+/* Key input as drag handle */
+input.jse--key{
+	cursor: grab !important;
+}
+
+input.jse--key:active{
+	cursor: grabbing !important;
 }

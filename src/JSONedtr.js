@@ -12,79 +12,393 @@ function JSONedtr( data, outputElement, config = {} ){
 	if( JSONedtr.config.instantChange == null  )
 		JSONedtr.config.instantChange = true ;
 
-	JSONedtr.level = function ( node, lvl=0 ) {
+	// Toolbar configuration - which buttons to show
+	if( JSONedtr.config.toolbar == null )
+		JSONedtr.config.toolbar = {
+			search: false,
+			export: false,
+			import: false,
+			undo: false,
+			redo: false,
+			validate: false,
+			theme: false
+		};
+
+	// Default theme ('light' or 'dark')
+	if( JSONedtr.config.theme == null )
+		JSONedtr.config.theme = 'light';
+
+	// History for undo/redo
+	JSONedtr.history = [];
+	JSONedtr.historyIndex = -1;
+	JSONedtr.maxHistory = 50;
+
+	// Original data for change highlighting
+	JSONedtr.originalData = null;
+
+	// Search filter
+	JSONedtr.searchFilter = '';
+
+	JSONedtr.saveHistory = function() {
+		// Remove any future history if we're not at the end
+		JSONedtr.history = JSONedtr.history.slice(0, JSONedtr.historyIndex + 1);
+
+		// Save current state
+		var currentState = JSONedtr.getDataString();
+		JSONedtr.history.push(currentState);
+
+		// Limit history size
+		if( JSONedtr.history.length > JSONedtr.maxHistory ) {
+			JSONedtr.history.shift();
+		} else {
+			JSONedtr.historyIndex++;
+		}
+	};
+
+	JSONedtr.undo = function() {
+		if( JSONedtr.historyIndex > 0 ) {
+			JSONedtr.historyIndex--;
+			var state = JSONedtr.history[JSONedtr.historyIndex];
+			JSONedtr.reload(JSON.parse(state));
+		}
+	};
+
+	JSONedtr.redo = function() {
+		if( JSONedtr.historyIndex < JSONedtr.history.length - 1 ) {
+			JSONedtr.historyIndex++;
+			var state = JSONedtr.history[JSONedtr.historyIndex];
+			JSONedtr.reload(JSON.parse(state));
+		}
+	};
+
+	JSONedtr.reload = function( newData ) {
+		JSONedtr.i = 0;
+		$( JSONedtr.outputElement ).attr('data-type', Array.isArray(newData) ? 'array' : 'object');
+		var html = JSONedtr.level( newData, 0, Array.isArray(newData) );
+		$( JSONedtr.outputElement ).html( html ).data('i', JSONedtr.i);
+		JSONedtr.bindEvents();
+		JSONedtr.notifyChange();
+		// Preserve the active search filter, if any, after rebuilding the
+		// content (undo/redo/import); reapply it only as a visibility filter.
+		if( JSONedtr.searchFilter ) {
+			JSONedtr.applyFilter( JSONedtr.searchFilter );
+		}
+	};
+
+	JSONedtr.isEqual = function( a, b ) {
+		if( a === b ) return true;
+		// Treat NaN as equal to NaN so number fields do not flicker as changed
+		return ( typeof a == 'number' && typeof b == 'number' && isNaN( a ) && isNaN( b ) );
+	};
+
+	JSONedtr.getRowValue = function( $row ) {
+		var $valueInput = $row.children( '.jse--value, .jse--number, .jse--reference' ).first();
+		if( !$valueInput.length ) return undefined;
+
+		if( $valueInput.hasClass( 'jse--boolean' ) ) {
+			return ( $valueInput.attr( 'data-value' ) === 'true' );
+		}
+
+		var value = $valueInput.val();
+
+		if( $valueInput.hasClass( 'jse--number' ) ) {
+			value = parseFloat( value );
+			if( isNaN( value ) ) value = 0;
+		}
+
+		if( $valueInput.hasClass( 'jse--null' ) && value === 'null' ) {
+			value = null;
+		}
+
+		return value;
+	};
+
+	JSONedtr.markChangedRows = function( original, $rows, isArray ) {
+		var originalIsContainer = ( original !== null && typeof original == 'object' );
+
+		$rows.each(function( index ){
+			var $row = $( this );
+			var $children = $row.children( '.jse--children' );
+			var key = isArray ? index : $row.children( '.jse--key' ).first().val();
+
+			var hasOriginal = originalIsContainer && ( isArray
+				? index < original.length
+				: Object.prototype.hasOwnProperty.call( original, key ) );
+
+			var originalValue = hasOriginal
+				? original[ isArray ? index : key ]
+				: undefined;
+
+			if( $children.length ) {
+				if( !hasOriginal || originalValue === null || typeof originalValue != 'object' ) {
+					$row.addClass( 'jse--changed' );
+				}
+				JSONedtr.markChangedRows(
+					hasOriginal ? originalValue : undefined,
+					$children.children( '.jse--row:not(.jse--add)' ),
+					( $children.attr( 'data-type' ) === 'array' )
+				);
+			} else if( !hasOriginal || !JSONedtr.isEqual( originalValue, JSONedtr.getRowValue( $row ) ) ) {
+				$row.addClass( 'jse--changed' );
+			}
+		});
+	};
+
+	JSONedtr.highlightChanges = function() {
+		if( !JSONedtr.originalData ) return;
+
+		var $output = $( JSONedtr.outputElement );
+		$output.find( '.jse--row' ).removeClass( 'jse--changed' );
+
+		JSONedtr.markChangedRows(
+			JSONedtr.originalData,
+			$output.children( '.jse--row:not(.jse--add)' ),
+			( $output.attr( 'data-type' ) === 'array' )
+		);
+	};
+
+	// Returns dot-separated paths of keys/array items that differ from the
+	// originally loaded data. With no arguments, compares against the initial
+	// snapshot; removed keys and added keys are included.
+	JSONedtr.getChangedKeys = function( original, current, prefix ) {
+		if( arguments.length === 0 ) {
+			original = JSONedtr.originalData;
+			current = JSONedtr.getData();
+		}
+
+		var changed = [];
+		var path = prefix || '';
+		var join = function( base, key ) {
+			return base ? base + '.' + key : String( key );
+		};
+
+		if( Array.isArray( current ) || Array.isArray( original ) ) {
+			var currentArr = Array.isArray( current ) ? current : [];
+			var originalArr = Array.isArray( original ) ? original : [];
+			var length = Math.max( currentArr.length, originalArr.length );
+
+			for( var i = 0; i < length; i++ ) {
+				var itemPath = join( path, i );
+				if( i >= originalArr.length || i >= currentArr.length ) {
+					changed.push( itemPath );
+				} else {
+					changed = changed.concat( JSONedtr.getChangedKeys( originalArr[ i ], currentArr[ i ], itemPath ) );
+				}
+			}
+			return changed;
+		}
+
+		if( current !== null && typeof current == 'object' ) {
+			var originalObj = ( original !== null && typeof original == 'object' ) ? original : {};
+
+			Object.keys( current ).forEach(function( key ){
+				var keyPath = join( path, key );
+				if( !Object.prototype.hasOwnProperty.call( originalObj, key ) ) {
+					changed.push( keyPath );
+				} else {
+					changed = changed.concat( JSONedtr.getChangedKeys( originalObj[ key ], current[ key ], keyPath ) );
+				}
+			});
+
+			Object.keys( originalObj ).forEach(function( key ){
+				if( !Object.prototype.hasOwnProperty.call( current, key ) ) {
+					changed.push( join( path, key ) );
+				}
+			});
+			return changed;
+		}
+
+		if( !JSONedtr.isEqual( original, current ) ) {
+			changed.push( path );
+		}
+		return changed;
+	};
+
+	JSONedtr.notifyChange = function() {
+		JSONedtr.highlightChanges();
+		if ( JSONedtr.config.runFunctionOnUpdate ) {
+			JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
+		}
+	};
+
+	JSONedtr.level = function ( node, lvl=0, isArray=false ) {
 		var output = '';
+		var index = 0;
+		var containerType = isArray ? 'array' : 'object';
 
 		$.each( node , function( key, value ) {
 			JSONedtr.i++;
 
+			var displayKey = key;
 			if( typeof key == 'string' )
-				key = key.replace(/\"/g,"&quot;");
+				displayKey = key.replace(/"/g,"");
 
-			if( typeof value == 'object' ) {
+			// Array index display - also serves as drag handle for array items
+			var indexHTML = '';
+			if( isArray ) {
+				indexHTML = '<span class="jse--index jse--drag-handle" title="Drag & Drop">⠿ [' + index + ']</span> ';
+				index++;
+			}
+
+			if( value !== null && typeof value == 'object' ) {
 				var type = typeof value;
 
 				if( Array.isArray( value ) )
 					type = 'array';
 
-				output += '<div class="jse--row jse--row--array" id="jse--row-' + JSONedtr.i + '"><input type="text" class="jse--key jse--array" data-level="' + lvl + '" value="' + key + '"> : <span class="jse--typeof">(' + type + ')</span>';
-				output += JSONedtr.level( value, lvl+1 );
-				output += '<div class="jse--delete">✖</div></div>';
+				output += '<div class="jse--row jse--row--array" id="jse--row-' + JSONedtr.i + '" data-key="' + key + '" draggable="true">';
+				output += '<div class="jse--toggle" draggable="false">▼</div>';
+				output += indexHTML;
+				// For arrays, don't show key input (index is shown visually)
+				if( !isArray ) {
+					output += '<input type="text" class="jse--key jse--array jse--editable" data-level="' + lvl + '" value="' + displayKey + '" draggable="false"> : ';
+				}
+				output += '<span class="jse--typeof">(' + type + ')</span>';
+				output += '<div class="jse--actions" draggable="false">';
+				output += '<button type="button" class="jse--btn jse--btn-up" title="Move up">↑</button>';
+				output += '<button type="button" class="jse--btn jse--btn-down" title="Move down">↓</button>';
+				output += '<button type="button" class="jse--btn jse--btn-copy" title="Copy">⧉</button>';
+				output += '<button type="button" class="jse--btn jse--btn-delete" title="Delete">✖</button>';
+				output += '</div>';
+				output += '<div class="jse--children" data-type="' + (Array.isArray(value) ? 'array' : 'object') + '">';
+				output += JSONedtr.level( value, lvl+1, Array.isArray(value) );
+				output += '</div>';
+				output += '</div>';
 			} else {
+				var type = typeof value;
+				var valueClass = 'jse--value';
+				var inputType = 'text';
+				var isBoolean = ( type == 'boolean' );
+
+				if( type == 'number' ) {
+					valueClass = 'jse--value jse--number';
+					inputType = 'number';
+				}
+
+				if( isBoolean ) {
+					valueClass = 'jse--value jse--boolean';
+				}
+
+				if( value === null ) {
+					type = 'null';
+					valueClass = 'jse--value jse--null';
+					value = 'null';
+				}
+
 				if( typeof value == 'string' )
-					value = value.replace(/\"/g,"&quot;");
-				output += '<div class="jse--row" id="jse--row-' + JSONedtr.i + '"><input type="text" class="jse--key" data-level="' + lvl + '" value="' + key + '"> : <span class="jse--typeof">(' + typeof value + ')</span><input type="text" class="jse--value" value="' + value + '" data-key="' + key + '"><div class="jse--delete">✖</div></div>';
+					value = value.replace(/"/g,"");
+
+				output += '<div class="jse--row" id="jse--row-' + JSONedtr.i + '" data-key="' + key + '" draggable="true">';
+				output += indexHTML;
+				// For arrays, don't show key input (index is shown visually)
+				if( !isArray ) {
+					output += '<input type="text" class="jse--key jse--editable" data-level="' + lvl + '" value="' + displayKey + '" draggable="false"> : ';
+				}
+				output += '<span class="jse--typeof">(' + type + ')</span>';
+				if( isBoolean ) {
+					output += '<span class="' + valueClass + '" data-key="' + key + '" data-value="' + ( value ? 'true' : 'false' ) + '" title="Click to toggle" draggable="false">' + ( value ? 'true' : 'false' ) + '</span>';
+				} else {
+					output += '<input type="' + inputType + '" class="' + valueClass + '" value="' + value + '" data-key="' + key + '"' + (inputType == 'number' ? ' step="any"' : '') + ' draggable="false">';
+				}
+				output += '<div class="jse--actions" draggable="false">';
+				output += '<button type="button" class="jse--btn jse--btn-up" title="Move up">↑</button>';
+				output += '<button type="button" class="jse--btn jse--btn-down" title="Move down">↓</button>';
+				output += '<button type="button" class="jse--btn jse--btn-copy" title="Copy">⧉</button>';
+				output += '<button type="button" class="jse--btn jse--btn-delete" title="Delete">✖</button>';
+				output += '</div>';
+				output += '</div>';
 			}
 		})
 
-		output += '<div class="jse--row jse--add" data-level="' + lvl + '"><button class="jse--plus">✚</button></div>';
+		output += '<div class="jse--row jse--add" data-level="' + lvl + '" data-container-type="' + containerType + '"><button type="button" class="jse--plus">✚</button></div>';
 
 		return output;
 	}
 
-	JSONedtr.getData = function( node = $( JSONedtr.outputElement + ' > .jse--row > input' ) ){
-		var result = {};
-		$.each( node, function() {
+	// Build data directly from .jse--row elements rather than their inputs.
+	// The previous implementation detected object/array rows by checking
+	// for jse--object/jse--array on the key input. Array items do not have
+	// key inputs (see level() when isArray == true), so nested objects and
+	// arrays inside arrays were omitted when collecting data, corrupting the
+	// JSON structure when moving or saving array items. This implementation
+	// detects row types by the presence of a .jse--children container.
+	JSONedtr.getData = function( $rows, isArray ){
+		if( $rows === undefined ) {
+			$rows = $( JSONedtr.outputElement ).children('.jse--row:not(.jse--add)');
+			isArray = ( $( JSONedtr.outputElement ).attr('data-type') === 'array' );
+		}
 
-			if( $(this).hasClass( 'jse--value' ) ) {
-				result[ $(this).data( 'key' ) ] = $(this).val();
-			}
+		var result = isArray ? [] : {};
 
-			if( $(this).hasClass( 'jse--object' ) || $(this).hasClass( 'jse--array' ) ) {
-				var selector = '#' + $(this).parent().attr('id') + ' > .jse--row > input';
-				result[ $(this).val( ) ] = JSONedtr.getData( $( selector ) );
+		$rows.each(function() {
+			var $row = $( this );
+			var $childrenContainer = $row.children('.jse--children');
+
+			if( $childrenContainer.length ) {
+				// Nested object or array
+				var childIsArray = ( $childrenContainer.attr('data-type') === 'array' );
+				var value = JSONedtr.getData( $childrenContainer.children('.jse--row:not(.jse--add)'), childIsArray );
+
+				if( isArray ) {
+					result.push( value );
+				} else {
+					var key = $row.children('.jse--key').first().val();
+					result[ key ] = value;
+				}
+			} else {
+				var $valueInput = $row.children('.jse--value, .jse--number, .jse--reference').first();
+				if( !$valueInput.length ) return;
+
+				var value = JSONedtr.getRowValue( $row );
+
+				if( isArray ) {
+					result.push( value );
+				} else {
+					var key = $row.children('.jse--key').first().val();
+					result[ key ] = value;
+				}
 			}
 		});
+
 		return result;
 	}
 
-	JSONedtr.getDataString = function( node = $( JSONedtr.outputElement + ' > .jse--row > input' ) ){
-		return JSON.stringify( JSONedtr.getData() );
+	JSONedtr.getDataString = function(){
+		return JSON.stringify( JSONedtr.getData(), null, 2 );
 	}
+
+	JSONedtr.validateJSON = function() {
+		try {
+			var data = JSONedtr.getData();
+			JSON.stringify(data);
+			return { valid: true, data: data };
+		} catch( e ) {
+			return { valid: false, error: e.message };
+		}
+	};
 
 	JSONedtr.addRowForm = function( plus ) {
 		var lvl = $( plus ).data('level');
-		//
-		// TODO: add support for array, reference and number
-		//
-		// var typeofHTML = '<select class="typeof">'+
-		// 					'<option value="text" selected="selected">Text</option>'+
-		// 					'<option value="object">Object</option>'+
-		// 					'<option value="array">Array</option>'+
-		// 					'<option value="reference">Reference</option>'+
-		// 					'<option value="boolean">Boolean</option>'+
-		// 					'<option value="number">Number</option>'+
-		// 				'</select>';
-		//
 
 		var typeofHTML = '<select class="jse--typeof">'+
-							'<option value="text" selected="selected">Text, Number</option>'+
-							'<option value="object">Object, Array</option>'+
+							'<option value="text" selected="selected">Text</option>'+
+							'<option value="number">Number</option>'+
+							'<option value="object">Object</option>'+
+							'<option value="array">Array</option>'+
+							'<option value="reference">Reference</option>'+
 							'<option value="boolean">Boolean</option>'+
 						'</select>';
 
-		$( plus ).html('<input type="text" class="jse--key" data-level="' + lvl + '" value=""> : <span class="jse--typeof">( ' + typeofHTML + ' )</span><input type="text" class="jse--value jse--value__new" value=""><button class="jse--save">Save</button><button class="jse--cancel">Cancel</button>');
-		$( plus ).children('.jse--key').focus();
+		var containerType = $( plus ).attr('data-container-type') || $( plus ).parent().attr('data-type') || 'object';
+		var isArrayContainer = ( containerType === 'array' );
+
+		if( isArrayContainer ) {
+			$( plus ).html('<span class="jse--typeof">( ' + typeofHTML + ' )</span><input type="text" class="jse--value jse--value__new" value=""><button type="button" class="jse--save">Save</button><button type="button" class="jse--cancel">Cancel</button>');
+			$( plus ).find('.jse--value__new').focus();
+		} else {
+			$( plus ).html('<input type="text" class="jse--key" data-level="' + lvl + '" value=""> : <span class="jse--typeof">( ' + typeofHTML + ' )</span><input type="text" class="jse--value jse--value__new" value=""><button type="button" class="jse--save">Save</button><button type="button" class="jse--cancel">Cancel</button>');
+			$( plus ).children('.jse--key').focus();
+		}
 
 		$( plus ).find( 'select.jse--typeof' ).change(function(){
 			switch ( $(this).val() ) {
@@ -92,23 +406,37 @@ function JSONedtr( data, outputElement, config = {} ){
 					$(this).parent().siblings( '.jse--value__new' ).replaceWith( '<input type="text" class="jse--value jse--value__new" value="">' );
 					$(this).parent().siblings( '.jse--value__new' ).focus();
 					break;
+				case 'number':
+					$(this).parent().siblings( '.jse--value__new' ).replaceWith( '<input type="number" class="jse--value jse--value__new" value="" step="any">' );
+					$(this).parent().siblings( '.jse--value__new' ).focus();
+					break;
 				case 'boolean':
-					$(this).parent().siblings( '.jse--value__new' ).replaceWith( '<input type="checkbox" class="jse--value jse--value__new" value="">' );
+					$(this).parent().siblings( '.jse--value__new' ).replaceWith( '<span class="jse--value jse--value__new jse--boolean" data-value="true" title="Click to toggle">true</span>' );
+					$(this).parent().siblings( '.jse--value__new' ).off('click').on('click', function( e ){
+						e.preventDefault();
+						JSONedtr.toggleBoolean( $(this) );
+					});
+					break;
+				case 'reference':
+					$(this).parent().siblings( '.jse--value__new' ).replaceWith( '<input type="text" class="jse--value jse--value__new jse--reference" value="" placeholder="ID or reference...">' );
 					$(this).parent().siblings( '.jse--value__new' ).focus();
 					break;
 				case 'object':
+				case 'array':
 					$(this).parent().siblings( '.jse--value__new' ).replaceWith( '<span class="jse--value__new"></span>' );
 					break;
 			}
 		})
 
 		$( '.jse--row.jse--add .jse--save' ).click(function( e ){
+			e.preventDefault();
 			JSONedtr.addRow( e.currentTarget.parentElement )
 		})
 
 		$( '.jse--row.jse--add .jse--cancel' ).click(function( e ){
+			e.preventDefault();
 			var x = e.currentTarget.parentElement
-			$( e.currentTarget.parentElement ).html('<button class="jse--plus">✚</button>');
+			$( e.currentTarget.parentElement ).html('<button type="button" class="jse--plus">✚</button>');
 			$( x ).find( '.jse--plus' ).click( function(e){
 				JSONedtr.addRowForm( e.currentTarget.parentElement );
 			});
@@ -122,55 +450,403 @@ function JSONedtr( data, outputElement, config = {} ){
 		ii++;
 		$( JSONedtr.outputElement ).data('i', ii);
 		var lvl = $( row ).data('level');
-		$( row ).removeClass( 'jse--add' ).attr('id', 'jse--row-' + ii );
+		var parent = $( row ).parent();
+		var containerType = $( row ).attr('data-container-type') || parent.attr('data-type') || 'object';
+		var isArrayContainer = ( containerType === 'array' );
+
+		$( row ).removeClass( 'jse--add' ).attr('id', 'jse--row-' + ii ).attr('draggable', 'true').removeAttr('data-container-type');
 		$( row ).find( 'span.jse--typeof' ).html('(' + typeOf +')');
-		var key = $( row ).find( '.jse--key' ).val()
+
+		var key;
+		if( isArrayContainer ) {
+			// Key is the positional index among existing (non-add) siblings
+			key = parent.children('.jse--row:not(.jse--add)').length - 1;
+			if( key < 0 ) key = 0;
+			$( row ).attr('data-key', key);
+		} else {
+			key = $( row ).find( '.jse--key' ).val();
+
+			// Check for duplicate keys
+			var duplicateKey = false;
+			parent.find('.jse--key').each(function() {
+				if( $(this).val() === key && !$(this).hasClass('jse--key') ) {
+					duplicateKey = true;
+					return false;
+				}
+			});
+		}
+
 		switch ( typeOf ) {
 			case 'text':
-				$( row ).find( '.jse--value__new' ).data( 'key', key ).removeClass( 'jse--value__new' );
+				$( row ).find( '.jse--value__new' ).data( 'key', key ).removeClass( 'jse--value__new' ).attr('draggable', 'false');
+				break;
+			case 'number':
+				$( row ).find( '.jse--value__new' ).data( 'key', key ).data( 'type', 'number' ).addClass( 'jse--number' ).removeClass( 'jse--value__new' ).attr('draggable', 'false');
+				break;
+			case 'reference':
+				$( row ).find( '.jse--value__new' ).data( 'key', key ).data( 'type', 'reference' ).addClass( 'jse--reference' ).removeClass( 'jse--value__new' ).attr('draggable', 'false');
 				break;
 			case 'boolean':
-				if ($( row ).find( '.jse--value__new' ).is(':checked')) {
-					$( row ).find( '.jse--value__new' ).replaceWith( '<input type="text" class="jse--value" value="true" data-key="' + key + '">' );
-				} else {
-					$( row ).find( '.jse--value__new' ).replaceWith( '<input type="text" class="jse--value" value="false" data-key="' + key + '">' );
-				}
+				$( row ).find( '.jse--value__new' ).data( 'key', key ).data( 'type', 'boolean' ).addClass( 'jse--boolean' ).removeClass( 'jse--value__new' ).attr('draggable', 'false');
 				break;
 			case 'object':
-				$( row ).find( '.jse--key' ).addClass( 'jse--object' );
-				$( row ).append( '<div class="xxx jse--row jse--add" data-level="' + (lvl + 1) + '"><button class="jse--plus">✚</button></div>' );
+				if( !isArrayContainer ) $( row ).find( '.jse--key' ).addClass( 'jse--object' );
+				$( row ).append( '<div class="jse--children" data-type="object"><div class="jse--row jse--add" data-level="' + (lvl + 1) + '" data-container-type="object"><button type="button" class="jse--plus">✚</button></div></div>' );
 				$( row ).addClass( 'jse--row-object' );
+				break;
+			case 'array':
+				if( !isArrayContainer ) $( row ).find( '.jse--key' ).addClass( 'jse--array' );
+				$( row ).append( '<div class="jse--children" data-type="array"><div class="jse--row jse--add" data-level="' + (lvl + 1) + '" data-container-type="array"><button type="button" class="jse--plus">✚</button></div></div>' );
+				$( row ).addClass( 'jse--row-array' );
 				break;
 		}
 
-		$( row ).append( '<div class="jse--delete">✖</div>' );
+		// Add action buttons
+		var actionsHTML = '<div class="jse--actions" draggable="false">';
+		actionsHTML += '<button type="button" class="jse--btn jse--btn-up" title="Move up">↑</button>';
+		actionsHTML += '<button type="button" class="jse--btn jse--btn-down" title="Move down">↓</button>';
+		actionsHTML += '<button type="button" class="jse--btn jse--btn-copy" title="Copy">⧉</button>';
+		actionsHTML += '<button type="button" class="jse--btn jse--btn-delete" title="Delete">✖</button>';
+		actionsHTML += '</div>';
 
-		$( row ).find( '.jse--delete' ).click(function( e ){
-			JSONedtr.deleteRow( e.currentTarget.parentElement );
-		})
-
-		$( row ).children( '.jse--save, .jse--cancel' ).remove();
-		$( row ).after( '<div class="jse--row jse--add" data-level="' + lvl + '"><button class="jse--plus">✚</button></div>' );
-		$( row ).parent().find( '.jse--row.jse--add .jse--plus' ).click( function(e){ JSONedtr.addRowForm( e.currentTarget.parentElement ) });
-
-		$( row ).find( 'input' ).on( 'change input', function( e ){
-			if ( JSONedtr.config.runFunctionOnUpdate ) {
-				if( JSONedtr.config.instantChange || 'change' == e.type )
-					JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
-			}
-		});
-
-		if ( JSONedtr.config.runFunctionOnUpdate ) {
-			JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
+		// Add toggle for objects/arrays
+		if( typeOf === 'object' || typeOf === 'array' ) {
+			$( row ).prepend( '<div class="jse--toggle" draggable="false">▼</div>' );
 		}
 
+		$( row ).append( actionsHTML );
+
+		$( row ).children( '.jse--save, .jse--cancel' ).remove();
+		$( row ).after( '<div class="jse--row jse--add" data-level="' + lvl + '" data-container-type="' + containerType + '"><button type="button" class="jse--plus">✚</button></div>' );
+
+		// For array containers replace the (now unused) key input with the
+		// standard index / drag-handle markup, matching the other items.
+		if( isArrayContainer ) {
+			$( row ).find( '> .jse--key' ).remove();
+			$( row ).prepend( '<span class="jse--index jse--drag-handle" title="Drag & drop">⠿ [' + key + ']</span> ' );
+			JSONedtr.updateArrayIndices( parent );
+		}
+
+		JSONedtr.bindEvents();
+		JSONedtr.saveHistory();
+		JSONedtr.notifyChange();
+
+	}
+
+	JSONedtr.toggleBoolean = function( $element ) {
+		var $el = ( $element instanceof jQuery ) ? $element : $( $element );
+		var next = ( $el.attr( 'data-value' ) !== 'true' );
+
+		$el.attr( 'data-value', next ? 'true' : 'false' ).text( next ? 'true' : 'false' );
+
+		// Rows of the add form are not committed yet, so no history/update.
+		if( $el.hasClass( 'jse--value__new' ) ) {
+			return;
+		}
+
+		JSONedtr.saveHistory();
+		JSONedtr.notifyChange();
 	}
 
 	JSONedtr.deleteRow = function( row ) {
 		$( row ).remove();
-		if ( JSONedtr.config.runFunctionOnUpdate ) {
-			JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
+		JSONedtr.saveHistory();
+		JSONedtr.notifyChange();
+	}
+
+	JSONedtr.moveRow = function( row, direction ) {
+		var $row = $( row );
+		var $parent = $row.parent();
+
+		if( direction === 'up' ) {
+			var $prev = $row.prev('.jse--row:not(.jse--add)');
+			if( $prev.length ) {
+				$row.insertBefore( $prev );
+			}
+		} else if( direction === 'down' ) {
+			var $next = $row.next('.jse--row:not(.jse--add)');
+			if( $next.length ) {
+				$row.insertAfter( $next );
+			}
 		}
+
+		// Update array indices after move
+		JSONedtr.updateArrayIndices( $parent );
+
+		JSONedtr.saveHistory();
+		JSONedtr.notifyChange();
+	}
+
+	JSONedtr.copyRow = function( row ) {
+		var $row = $( row );
+		var $clone = $row.clone();
+		var ii = $( JSONedtr.outputElement ).data('i');
+		var $parent = $row.parent();
+		var isArrayItem = $row.find('> .jse--index').length > 0;
+
+		// Generate new ID
+		ii++;
+		$( JSONedtr.outputElement ).data('i', ii);
+		$clone.attr('id', 'jse--row-' + ii);
+
+		if( !isArrayItem ) {
+			// Update key to indicate copy
+			var key = $clone.find('.jse--key').first().val();
+			var newKey = key + '_copy';
+			$clone.find('.jse--key').first().val(newKey);
+
+			// Update data-key for value inputs
+			$clone.find('.jse--value, .jse--number, .jse--reference').each(function() {
+				$(this).data('key', newKey);
+			});
+		}
+
+		// Insert after original
+		$row.after( $clone );
+
+		// For array items, renumber indices/keys of the whole container
+		if( isArrayItem ) {
+			JSONedtr.updateArrayIndices( $parent );
+		}
+
+		JSONedtr.bindEvents();
+		JSONedtr.saveHistory();
+		JSONedtr.notifyChange();
+	}
+
+	JSONedtr.toggleCollapse = function( row ) {
+		var $row = $( row );
+		var $children = $row.find('> .jse--children');
+		var $toggle = $row.find('> .jse--toggle');
+
+		if( $children.is(':visible') ) {
+			$children.slideUp(200);
+			$toggle.text('▶');
+		} else {
+			$children.slideDown(200);
+			$toggle.text('▼');
+		}
+	}
+
+	JSONedtr.updateArrayIndices = function( $parent ) {
+		// This function applies only to array containers, where each item's key
+		// is its positional index and must be recalculated after rows are moved,
+		// deleted, or added.
+		//
+		// Previously, it ran for both arrays and objects and replaced .jse--key
+		// values with numeric indexes. Moving object rows then destroyed their
+		// actual keys, replacing them with "0", "1", "2", etc., and corrupting
+		// the JSON structure. Object keys must remain unchanged; their row order
+		// in the DOM is already correct and does not require index updates.
+		var isArrayContainer = ( $parent.attr('data-type') === 'array' );
+
+		if( !isArrayContainer ) {
+			return;
+		}
+
+		// Find all direct row children (not .jse--add) and update their indices.
+		// IMPORTANT: Limit all searches below to direct row children
+		// (children(), not find()). find() previously searched the entire
+		// subtree. When an array item was itself an object/array with nested
+		// values, this overwrote their data-key values with the parent array
+		// index, corrupting JSON and losing nested object keys.
+		var index = 0;
+		$parent.children('.jse--row:not(.jse--add)').each(function() {
+			var $row = $(this);
+			// Update visual index display (row's own index only)
+			var $indexEl = $row.children('.jse--index').first();
+			if( $indexEl.length ) {
+				$indexEl.html('⠿ [' + index + ']');
+			}
+			// Update key input value (for arrays, key = index)
+			var $keyInput = $row.children('.jse--key').first();
+			if( $keyInput.length ) {
+				$keyInput.val(index);
+			}
+			// Update data-key on value inputs (direct children only)
+			$row.children('.jse--value, .jse--number, .jse--reference').each(function() {
+				$(this).data('key', index);
+			});
+			index++;
+		});
+	}
+
+	// Search filters existing rows by showing or hiding them without rebuilding
+	// the data, so editing while searching never discards entered values.
+	JSONedtr.applyFilter = function( term ) {
+		JSONedtr.searchFilter = term || '';
+
+		var $rows = $( JSONedtr.outputElement ).find('.jse--row:not(.jse--add)');
+
+		if( !JSONedtr.searchFilter ) {
+			$rows.show();
+			return;
+		}
+
+		var lowerTerm = JSONedtr.searchFilter.toLowerCase();
+
+		$rows.hide();
+
+		$rows.each(function(){
+			var $row = $( this );
+			var text = '';
+
+			var $key = $row.find('> .jse--key').first();
+			if( $key.length ) text += ' ' + $key.val();
+
+			var $index = $row.find('> .jse--index').first();
+			if( $index.length ) text += ' ' + $index.text();
+
+			var $value = $row.find('> .jse--value, > .jse--number, > .jse--reference').first();
+			if( $value.length ) {
+				text += ' ' + ( $value.hasClass( 'jse--boolean' ) ? $value.text() : $value.val() );
+			}
+
+			if( text.toLowerCase().indexOf( lowerTerm ) !== -1 ) {
+				// Show the matched row, all of its ancestor rows (so it is
+				// reachable), and all of its descendant rows (full subtree).
+				$row.show();
+				$row.parents('.jse--row').show();
+				$row.find('.jse--row').show();
+			}
+		});
+	}
+
+	// Backwards compatible alias
+	JSONedtr.search = function( term ) {
+		JSONedtr.applyFilter( term );
+	}
+
+	JSONedtr.exportJSON = function() {
+		var data = JSONedtr.getDataString();
+		var blob = new Blob([data], { type: 'application/json' });
+		var url = URL.createObjectURL(blob);
+		var a = document.createElement('a');
+		a.href = url;
+		a.download = 'data.json';
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
+	JSONedtr.importJSON = function( file ) {
+		var reader = new FileReader();
+		reader.onload = function(e) {
+			try {
+				var data = JSON.parse(e.target.result);
+				JSONedtr.originalData = JSON.parse(JSON.stringify(data));
+				JSONedtr.reload(data);
+				JSONedtr.saveHistory();
+			} catch( err ) {
+				alert('Invalid JSON file: ' + err.message);
+			}
+		};
+		reader.readAsText(file);
+	}
+
+	JSONedtr.bindEvents = function() {
+		var outputElement = JSONedtr.outputElement;
+
+		// Plus button for adding rows
+		$( outputElement + ' .jse--row.jse--add .jse--plus' ).off('click').click(function( e ){
+			e.preventDefault();
+			JSONedtr.addRowForm( e.currentTarget.parentElement );
+		});
+
+		// Delete button
+		$( outputElement + ' .jse--btn-delete' ).off('click').click(function( e ){
+			e.preventDefault();
+			var row = $(this).closest('.jse--row');
+			JSONedtr.deleteRow( row );
+		});
+
+		// Move up button
+		$( outputElement + ' .jse--btn-up' ).off('click').click(function( e ){
+			e.preventDefault();
+			var row = $(this).closest('.jse--row');
+			JSONedtr.moveRow( row, 'up' );
+		});
+
+		// Move down button
+		$( outputElement + ' .jse--btn-down' ).off('click').click(function( e ){
+			e.preventDefault();
+			var row = $(this).closest('.jse--row');
+			JSONedtr.moveRow( row, 'down' );
+		});
+
+		// Copy button
+		$( outputElement + ' .jse--btn-copy' ).off('click').click(function( e ){
+			e.preventDefault();
+			var row = $(this).closest('.jse--row');
+			JSONedtr.copyRow( row );
+		});
+
+		// Toggle collapse
+		$( outputElement + ' .jse--toggle' ).off('click').click(function( e ){
+			e.preventDefault();
+			var row = $(this).closest('.jse--row');
+			JSONedtr.toggleCollapse( row );
+		});
+
+		// Boolean value toggle (click switches true/false)
+		$( outputElement + ' .jse--value.jse--boolean:not(.jse--value__new)' ).off('click').click(function( e ){
+			e.preventDefault();
+			e.stopPropagation();
+			JSONedtr.toggleBoolean( $(this) );
+		});
+
+		// Input changes
+		$( outputElement + ' .jse--row input' ).off('change input').on( 'change input', function( e ){
+			if( JSONedtr.config.instantChange || 'change' == e.type ) {
+				JSONedtr.notifyChange();
+			}
+			// Save history on change
+			if( 'change' == e.type ) {
+				JSONedtr.saveHistory();
+			}
+		});
+
+		// Key editing (make keys editable)
+		$( outputElement + ' .jse--editable' ).off('blur').on('blur', function() {
+			var newKey = $(this).val();
+			var row = $(this).closest('.jse--row');
+			var valueInput = row.find('.jse--value, .jse--number, .jse--reference').first();
+			if( valueInput.length ) {
+				valueInput.data('key', newKey);
+			}
+			JSONedtr.saveHistory();
+			JSONedtr.notifyChange();
+		});
+	}
+
+	JSONedtr.bindKeyboardShortcuts = function() {
+		$(document).on('keydown', function(e) {
+			// Only handle shortcuts when focused inside the editor
+			if( !$(e.target).closest(JSONedtr.outputElement).length ) return;
+
+			// Ctrl+Z - Undo
+			if( e.ctrlKey && e.key === 'z' && !e.shiftKey ) {
+				e.preventDefault();
+				JSONedtr.undo();
+			}
+			// Ctrl+Y or Ctrl+Shift+Z - Redo
+			else if( (e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z') ) {
+				e.preventDefault();
+				JSONedtr.redo();
+			}
+			// Ctrl+Shift+S - Save/Export (Ctrl+S conflicts with browser save)
+			else if( e.ctrlKey && e.shiftKey && e.key === 'S' ) {
+				e.preventDefault();
+				JSONedtr.exportJSON();
+			}
+			// Delete - Delete selected row
+			else if( e.key === 'Delete' && $(e.target).hasClass('jse--key') ) {
+				e.preventDefault();
+				var row = $(e.target).closest('.jse--row');
+				JSONedtr.deleteRow( row );
+			}
+		});
 	}
 
 	JSONedtr.executeFunctionByName = function(functionName, context /*, args */) {
@@ -183,28 +859,308 @@ function JSONedtr( data, outputElement, config = {} ){
 		return context[func].apply(context, args);
 	}
 
+	JSONedtr.createToolbar = function( outputElement ) {
+		var tb = JSONedtr.config.toolbar || {};
+		var toolbar = '<div class="jse--toolbar">';
+		var hasContent = false;
+
+		if( tb.search !== false ) {
+			toolbar += '<input type="text" class="jse--search-input" placeholder=" Search...">';
+			toolbar += '<button type="button" class="jse--btn-search" title="Search">🔍</button>';
+			toolbar += '<button type="button" class="jse--btn-clear-search" title="Clear">✕</button>';
+			hasContent = true;
+		}
+
+		if( tb.export !== false || tb.import !== false ) {
+			if( hasContent ) toolbar += '<span class="jse--toolbar-separator">|</span>';
+			if( tb.export !== false )
+				toolbar += '<button type="button" class="jse--btn-export" title="Export JSON (Ctrl+Shift+S)">💾</button>';
+			if( tb.import !== false ) {
+				toolbar += '<button type="button" class="jse--btn-import" title="Import JSON">📂</button>';
+				toolbar += '<input type="file" class="jse--file-input" accept=".json" style="display:none">';
+			}
+			hasContent = true;
+		}
+
+		if( tb.undo !== false || tb.redo !== false ) {
+			if( hasContent ) toolbar += '<span class="jse--toolbar-separator">|</span>';
+			if( tb.undo !== false )
+				toolbar += '<button type="button" class="jse--btn-undo" title="Undo (Ctrl+Z)">↶</button>';
+			if( tb.redo !== false )
+				toolbar += '<button type="button" class="jse--btn-redo" title="Redo (Ctrl+Y)">↷</button>';
+			hasContent = true;
+		}
+
+		if( tb.theme !== false ) {
+			if( hasContent ) toolbar += '<span class="jse--toolbar-separator">|</span>';
+			// \uD83C\uDF19 = 🌙 (crescent moon), \u2600\uFE0F = ☀️ (sun)
+			var themeIcon = (JSONedtr.config.theme === 'dark') ? '\u2600\uFE0F' : '\uD83C\uDF19';
+			toolbar += '<button type="button" class="jse--btn-theme" title="Change theme">' + themeIcon + '</button>';
+		}
+
+		if( tb.validate !== false ) {
+			if( hasContent ) toolbar += '<span class="jse--toolbar-separator">|</span>';
+			toolbar += '<button type="button" class="jse--btn-validate" title="JSON Validation">✓</button>';
+			hasContent = true;
+		}
+
+		toolbar += '</div>';
+
+		$( outputElement ).before( toolbar );
+
+		// Capture the toolbar reference immediately after inserting it. If this
+		// is done later (after inserting the validation modal), the modal rather
+		// than the toolbar becomes the element immediately before outputElement,
+		// so $toolbar.find(...) would return an empty collection and no toolbar
+		// buttons would receive event handlers.
+		var $toolbar = $( outputElement ).prev('.jse--toolbar');
+
+		// Validation modal (hidden by default)
+		var modalHtml = '<div class="jse--validation-modal" style="display:none;">' +
+			'<div class="jse--validation-modal-content">' +
+			'<span class="jse--validation-status"></span>' +
+			'<button type="button" class="jse--validation-modal-close" title="Close">✕</button>' +
+			'</div></div>';
+		$( outputElement ).before( modalHtml );
+
+		// Search runs only on button click or Enter, not as you type
+		// (to avoid rebuilding the list on every keystroke with large datasets),
+		// and changes visibility only; it never modifies the data.
+		$toolbar.find('.jse--search-input').on('keydown', function( e ) {
+			if( e.key === 'Enter' ) {
+				e.preventDefault();
+				JSONedtr.applyFilter( $(this).val() );
+			}
+		});
+
+		$toolbar.find('.jse--btn-search').click(function() {
+			var term = $toolbar.find('.jse--search-input').val();
+			JSONedtr.applyFilter( term );
+		});
+
+		$toolbar.find('.jse--btn-clear-search').click(function() {
+			$toolbar.find('.jse--search-input').val('');
+			JSONedtr.applyFilter('');
+		});
+
+		// Export
+		$toolbar.find('.jse--btn-export').click(function() {
+			JSONedtr.exportJSON();
+		});
+
+		// Import
+		$toolbar.find('.jse--btn-import').click(function() {
+			$toolbar.find('.jse--file-input').click();
+		});
+
+		$toolbar.find('.jse--file-input').change(function(e) {
+			if( e.target.files.length > 0 ) {
+				JSONedtr.importJSON( e.target.files[0] );
+			}
+		});
+
+		// Undo/Redo
+		$toolbar.find('.jse--btn-undo').click(function() {
+			JSONedtr.undo();
+		});
+
+		$toolbar.find('.jse--btn-redo').click(function() {
+			JSONedtr.redo();
+		});
+
+		// Validate
+		$toolbar.find('.jse--btn-validate').click(function() {
+			var result = JSONedtr.validateJSON();
+			var $modal = $( outputElement ).prev('.jse--validation-modal');
+			var $status = $modal.find('.jse--validation-status');
+
+			if( result.valid ) {
+				$status.html('<span class="jse--validation-ok">✓ Valid</span>');
+			} else {
+				$status.html('<span class="jse--validation-error">✗ ' + result.error + '</span>');
+			}
+
+			$modal.fadeIn(200);
+
+			// Auto-hide after 3 seconds
+			setTimeout(function() {
+				$modal.fadeOut(200);
+			}, 3000);
+		});
+
+		// Close validation modal
+		$( outputElement ).prev('.jse--validation-modal').find('.jse--validation-modal-close').click(function() {
+			$(this).closest('.jse--validation-modal').fadeOut(200);
+		});
+
+		// Close on click outside
+		$( outputElement ).prev('.jse--validation-modal').click(function(e) {
+			if( e.target === this ) {
+				$(this).fadeOut(200);
+			}
+		});
+
+		// Close on Escape
+		$(document).on('keydown', function(e) {
+			if( e.key === 'Escape' ) {
+				$( outputElement ).prev('.jse--validation-modal').fadeOut(200);
+			}
+		});
+
+		// Theme toggle
+		$toolbar.find('.jse--btn-theme').click(function() {
+			JSONedtr.toggleTheme();
+		});
+	};
+
+	JSONedtr.toggleTheme = function() {
+		var $darkCss = $('#jsonedtr-dark-css');
+		if( !$darkCss.length ) return;
+
+		var isDark = !$darkCss.prop('disabled');
+		$darkCss.prop('disabled', isDark);
+
+		// Update button icon: \uD83C\uDF19 = 🌙, \u2600\uFE0F = ️
+		var $btn = $('.jse--btn-theme');
+		if( $btn.length ) {
+			$btn.text(isDark ? '\uD83C\uDF19' : '\u2600\uFE0F');
+		}
+
+		try {
+			localStorage.setItem('jsonedtr-theme', isDark ? 'light' : 'dark');
+		} catch(e) {}
+	};
+
+	JSONedtr.applySavedTheme = function() {
+		var theme = JSONedtr.config.theme || 'light';
+		try {
+			var saved = localStorage.getItem('jsonedtr-theme');
+			if( saved ) theme = saved;
+		} catch(e) {}
+
+		if( theme === 'dark' ) {
+			var $darkCss = $('#jsonedtr-dark-css');
+			if( $darkCss.length ) {
+				$darkCss.prop('disabled', false);
+			}
+			// Update button icon to sun (\u2600\uFE0F = ☀️)
+			var $btn = $('.jse--btn-theme');
+			if( $btn.length ) {
+				$btn.text('\u2600\uFE0F');
+			}
+		}
+	};
+
+	JSONedtr.initDragAndDrop = function( outputElement ) {
+		var dragSrcEl = null;
+		var isDragging = false;
+
+		// Rows have draggable="true" set when their HTML is generated in
+		// level()/addRow(), so drag-and-drop does not rely on dynamically
+		// changing draggable on mousedown (which was unreliable and prevented
+		// it from working).
+		// Elements that should not start a drag (buttons, value inputs, etc.)
+		// are marked draggable="false" directly in the markup. This prevents
+		// the browser from starting a drag when the user selects text or clicks
+		// a button.
+
+		$( outputElement ).on('dragstart', '.jse--row:not(.jse--add)', function(e) {
+			// Extra check for custom or cloned rows.
+			if( $(e.target).is('button, .jse--btn, .jse--save, .jse--cancel, .jse--value, .jse--number, .jse--reference') ) {
+				e.preventDefault();
+				return false;
+			}
+
+			dragSrcEl = this;
+			isDragging = true;
+			e.stopPropagation();
+			e.originalEvent.dataTransfer.effectAllowed = 'move';
+			e.originalEvent.dataTransfer.setData('text/plain', $(this).attr('id') || '');
+			$(this).addClass('jse--dragging');
+		});
+
+		$( outputElement ).on('dragend', '.jse--row:not(.jse--add)', function(e) {
+			$(this).removeClass('jse--dragging');
+			$( outputElement ).find('.jse--row').removeClass('jse--drag-over');
+			isDragging = false;
+			dragSrcEl = null;
+		});
+
+		$( outputElement ).on('dragover', '.jse--row:not(.jse--add)', function(e) {
+			if( !isDragging || !dragSrcEl ) return;
+			e.preventDefault();
+			e.stopPropagation();
+			if( this === dragSrcEl ) return;
+			e.originalEvent.dataTransfer.dropEffect = 'move';
+			$( outputElement ).find('.jse--row').removeClass('jse--drag-over');
+			$(this).addClass('jse--drag-over');
+		});
+
+		$( outputElement ).on('dragleave', '.jse--row:not(.jse--add)', function(e) {
+			$(this).removeClass('jse--drag-over');
+		});
+
+		$( outputElement ).on('drop', '.jse--row:not(.jse--add)', function(e) {
+			e.preventDefault();
+			e.stopPropagation();
+
+			$(this).removeClass('jse--drag-over');
+
+			if( !isDragging || !dragSrcEl || dragSrcEl === this ) {
+				isDragging = false;
+				return false;
+			}
+
+			var $src = $( dragSrcEl );
+			var $dst = $( this );
+
+			// Allow moves only within the same parent container (same-level
+			// array/object).
+			var sameParent = ( $src.parent()[0] === $dst.parent()[0] );
+
+			if( sameParent ) {
+				var srcIndex = $src.index();
+				var dstIndex = $dst.index();
+
+				if( srcIndex < dstIndex ) {
+					$src.insertAfter( $dst );
+				} else {
+					$src.insertBefore( $dst );
+				}
+
+				// Update array indices after move
+				JSONedtr.updateArrayIndices( $src.parent() );
+
+				// Save history and trigger update
+				JSONedtr.saveHistory();
+				JSONedtr.notifyChange();
+			}
+
+			isDragging = false;
+			dragSrcEl = null;
+			return false;
+		});
+	};
+
 	JSONedtr.init = function( data, outputElement ) {
 		data = JSON.parse( data );
 		JSONedtr.i = 0;
 		JSONedtr.outputElement = outputElement;
-		var html = JSONedtr.level( data );
+		JSONedtr.originalData = JSON.parse(JSON.stringify(data));
 
-		$( outputElement ).addClass('jse--output').html( html ).data('i', JSONedtr.i);
+		// Create toolbar
+		JSONedtr.createToolbar( outputElement );
 
-		$( outputElement + ' .jse--row.jse--add .jse--plus' ).click(function( e ){
-			JSONedtr.addRowForm( e.currentTarget.parentElement );
-		})
+		var rootIsArray = Array.isArray( data );
+		var html = JSONedtr.level( data, 0, rootIsArray );
 
-		$( outputElement + ' .jse--row .jse--delete' ).click(function( e ){
-			JSONedtr.deleteRow( e.currentTarget.parentElement );
-		})
+		$( outputElement ).addClass('jse--output').attr('data-type', rootIsArray ? 'array' : 'object').html( html ).data('i', JSONedtr.i);
 
-		$( outputElement + ' .jse--row input' ).on( 'change input', function( e ){
-			if ( JSONedtr.config.runFunctionOnUpdate ) {
-				if( JSONedtr.config.instantChange || 'change' == e.type )
-					JSONedtr.executeFunctionByName( JSONedtr.config.runFunctionOnUpdate , window, JSONedtr);
-			}
-		});
+		JSONedtr.bindEvents();
+		JSONedtr.bindKeyboardShortcuts();
+		JSONedtr.initDragAndDrop( outputElement );
+		JSONedtr.saveHistory();
+		JSONedtr.applySavedTheme();
 	}
 
 	JSONedtr.init( data, outputElement );
